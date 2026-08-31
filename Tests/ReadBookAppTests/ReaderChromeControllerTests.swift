@@ -14,21 +14,21 @@ final class ReaderChromeControllerTests: XCTestCase {
         XCTAssertFalse(sut.bottomVisible)
     }
 
-    func testTopDwellRevealsOnlyTopAfter250ms() {
+    func testTopDwellRevealsOnlyTopAfter90ms() {
         let scheduler = ChromeManualScheduler()
         let sut = ReaderChromeController(scheduler: scheduler)
         sut.topZoneChanged(inside: true)
         XCTAssertFalse(sut.topVisible)
-        scheduler.fire(milliseconds: 250)
+        scheduler.fire(milliseconds: 90)
         XCTAssertTrue(sut.topVisible)
         XCTAssertFalse(sut.bottomVisible)
     }
 
-    func testBottomDwellRevealsOnlyBottomAfter250ms() {
+    func testBottomDwellRevealsOnlyBottomAfter90ms() {
         let scheduler = ChromeManualScheduler()
         let sut = ReaderChromeController(scheduler: scheduler)
         sut.bottomZoneChanged(inside: true)
-        scheduler.fire(milliseconds: 250)
+        scheduler.fire(milliseconds: 90)
         XCTAssertFalse(sut.topVisible)
         XCTAssertTrue(sut.bottomVisible)
     }
