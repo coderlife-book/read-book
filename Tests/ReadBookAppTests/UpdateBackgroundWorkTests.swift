@@ -35,6 +35,17 @@ final class UpdateBackgroundWorkTests: XCTestCase {
         XCTAssertEqual(candidate.lastPathComponent, "ReadBook.app")
         XCTAssertEqual(runner.executables, ["/usr/bin/ditto"])
     }
+
+    func testChecksumVerificationHasBackgroundAsyncAPI() async throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReadBookChecksum-\(UUID().uuidString).bin")
+        try Data("abc".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let checksum = Data("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  ReadBook-macOS.zip\n".utf8)
+
+        try await UpdateChecksum.verifyInBackground(fileURL: file, checksumData: checksum)
+    }
 }
 
 @MainActor
