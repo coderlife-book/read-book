@@ -52,15 +52,24 @@ final class WindowRegistry: ReaderWindowDriving {
         readerWindow?.ignoresMouseEvents = enabled
     }
 
-    func applyAppearance(_ appearance: ReaderWindowAppearance) {
+    func applyAppearance(_ preferences: ReaderPreferences) {
         guard let readerWindow else { return }
-        readerWindow.backgroundColor = .clear
+
+        let base = ThemePalette.resolve(preferences.theme).background
         readerWindow.isOpaque = false
-        switch appearance {
+
+        switch preferences.windowAppearance {
         case .card:
-            if !readerWindow.hasShadow { readerWindow.hasShadow = true }
-        case .frameless, .transparent:
-            if readerWindow.hasShadow { readerWindow.hasShadow = false }
+            readerWindow.backgroundColor = base
+            readerWindow.hasShadow = true
+        case .frameless:
+            readerWindow.backgroundColor = base.withAlphaComponent(
+                preferences.framelessBackgroundOpacity
+            )
+            readerWindow.hasShadow = false
+        case .transparent:
+            readerWindow.backgroundColor = .clear
+            readerWindow.hasShadow = false
         }
     }
 
@@ -98,7 +107,7 @@ final class WindowRegistry: ReaderWindowDriving {
     func apply(_ preferences: ReaderPreferences) {
         setAlwaysOnTop(preferences.alwaysOnTop)
         setAppPresence(preferences.appPresenceMode)
-        applyAppearance(preferences.windowAppearance)
+        applyAppearance(preferences)
     }
 
     static func revalidatedFrame(_ frame: CGRect, visibleFrames: [CGRect]) -> CGRect {
