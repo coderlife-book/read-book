@@ -10,8 +10,8 @@ final class AppRuntime {
     let chrome: ReaderChromeController
     let updater: UpdateController
 
-    private let hotKeyService: GlobalHotKeyService
-    private let globalInputService: ReaderGlobalInputService
+    private let hotKeyService: any GlobalHotKeyServicing
+    private let globalInputService: any ReaderGlobalInputServicing
     private(set) var hotKeyAvailable = false
     private(set) var globalPointerAvailable = false
     private var lastPreferences = ReaderPreferences.defaults
@@ -19,8 +19,8 @@ final class AppRuntime {
 
     init(
         windowRegistry: WindowRegistry = WindowRegistry(),
-        hotKeyService: GlobalHotKeyService = GlobalHotKeyService(),
-        globalInputService: ReaderGlobalInputService = ReaderGlobalInputService(),
+        hotKeyService: any GlobalHotKeyServicing = GlobalHotKeyService(),
+        globalInputService: any ReaderGlobalInputServicing = ReaderGlobalInputService(),
         updater: UpdateController = UpdateController()
     ) {
         self.windowRegistry = windowRegistry
@@ -46,28 +46,19 @@ final class AppRuntime {
         guard !started else { return }
         started = true
 
-        hotKeyAvailable = hotKeyService.start { [weak self] in
-            self?.windowState.toggleEmergencyShortcut()
-        }
-        globalPointerAvailable = globalInputService.start(
-            onPointer: { [weak self] point in
-                self?.windowState.pointerMoved(to: point)
-            },
-            onOption: { [weak self] isDown in
-                guard let self else { return }
-                self.windowState.optionChanged(isDown: isDown)
-                if isDown {
-                    self.chrome.revealAllImmediately()
-                } else {
-                    self.chrome.bodyEntered()
-                }
-            }
-        )
+        // Safety policy for v0.1.4: do not install any process-wide keyboard,
+        // modifier-key, or pointer monitors. A real-device v0.1.3 report showed
+        // a system-wide input hang after launch, so global hooks stay disabled
+        // until they can be reintroduced with isolated real-device validation.
+        hotKeyAvailable = false
+        globalPointerAvailable = false
         updater.scheduleAutomaticCheck()
     }
 
     func stop() {
         updater.cancelAutomaticCheck()
+        // Defensive cleanup in case an older runtime instance had registered
+        // hooks before being replaced during development.
         globalInputService.stop()
         hotKeyService.stop()
         hotKeyAvailable = false
