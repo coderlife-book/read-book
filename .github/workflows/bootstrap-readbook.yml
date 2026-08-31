@@ -40,7 +40,37 @@ jobs:
           swift --version
 
       - name: Run tests
-        run: swift test
+        shell: bash
+        run: |
+          set +e
+          swift test > /tmp/swift-test.log 2>&1
+          status=$?
+          cat /tmp/swift-test.log
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "Swift test failed with exit code $status"
+              echo
+              grep -nE '(^|[^A-Za-z])(error:|fatal error:|failed:|FAIL|XCTAssert)' /tmp/swift-test.log || true
+              echo
+              echo "--- last 220 log lines ---"
+              tail -n 220 /tmp/swift-test.log
+            } > .ci/swift-test-error.txt
+          fi
+          exit "$status"
+
+      - name: Persist failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .ci/swift-test-error.txt ]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/swift-test-error.txt
+          git commit -m "[skip ci] diagnostics: capture macOS swift test failure"
+          git push origin HEAD:feature/readbook-v1
 
       - name: Build ReadBook
         run: swift build
