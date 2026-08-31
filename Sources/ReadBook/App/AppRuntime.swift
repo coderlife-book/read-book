@@ -10,24 +10,17 @@ final class AppRuntime {
     let chrome: ReaderChromeController
     let updater: UpdateController
 
-    private let hotKeyService: any GlobalHotKeyServicing
-    private let globalInputService: any ReaderGlobalInputServicing
-    private(set) var hotKeyAvailable = false
-    private(set) var globalPointerAvailable = false
+    private(set) var systemInputHooksEnabled = false
     private var lastPreferences = ReaderPreferences.defaults
     private var started = false
 
     init(
         windowRegistry: WindowRegistry = WindowRegistry(),
-        hotKeyService: any GlobalHotKeyServicing = GlobalHotKeyService(),
-        globalInputService: any ReaderGlobalInputServicing = ReaderGlobalInputService(),
         updater: UpdateController = UpdateController()
     ) {
         self.windowRegistry = windowRegistry
         self.windowState = ReaderWindowStateController(driver: windowRegistry)
         self.chrome = ReaderChromeController()
-        self.hotKeyService = hotKeyService
-        self.globalInputService = globalInputService
         self.updater = updater
     }
 
@@ -46,23 +39,15 @@ final class AppRuntime {
         guard !started else { return }
         started = true
 
-        // Safety policy for v0.1.4: do not install any process-wide keyboard,
-        // modifier-key, or pointer monitors. A real-device v0.1.3 report showed
-        // a system-wide input hang after launch, so global hooks stay disabled
-        // until they can be reintroduced with isolated real-device validation.
-        hotKeyAvailable = false
-        globalPointerAvailable = false
+        // v0.1.4 safety policy: ReadBook does not install process-wide
+        // keyboard, modifier-key, or mouse event monitors.
+        systemInputHooksEnabled = false
         updater.scheduleAutomaticCheck()
     }
 
     func stop() {
         updater.cancelAutomaticCheck()
-        // Defensive cleanup in case an older runtime instance had registered
-        // hooks before being replaced during development.
-        globalInputService.stop()
-        hotKeyService.stop()
-        hotKeyAvailable = false
-        globalPointerAvailable = false
+        systemInputHooksEnabled = false
         started = false
     }
 
