@@ -103,9 +103,11 @@ final class UpdateController {
         state = .downloading(release)
         isPresented = true
         do {
-            async let checksumData = client.data(from: checksum.browserDownloadURL)
-            async let archiveURL = client.download(from: archive.browserDownloadURL)
-            let (checksumBytes, zipURL) = try await (checksumData, archiveURL)
+            // These operations intentionally stay on the controller's MainActor
+            // boundary. `async let` would spawn child tasks and force the
+            // non-Sendable update provider across actor isolation under Swift 6.
+            let checksumBytes = try await client.data(from: checksum.browserDownloadURL)
+            let zipURL = try await client.download(from: archive.browserDownloadURL)
             try UpdateChecksum.verify(fileURL: zipURL, checksumData: checksumBytes)
 
             let candidate = try installer.extractArchive(zipURL)
