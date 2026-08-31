@@ -8,6 +8,7 @@ final class AppRuntime {
     let windowRegistry: WindowRegistry
     let windowState: ReaderWindowStateController
     let chrome: ReaderChromeController
+    let updater: UpdateController
 
     private let hotKeyService: GlobalHotKeyService
     private let globalInputService: ReaderGlobalInputService
@@ -19,13 +20,19 @@ final class AppRuntime {
     init(
         windowRegistry: WindowRegistry = WindowRegistry(),
         hotKeyService: GlobalHotKeyService = GlobalHotKeyService(),
-        globalInputService: ReaderGlobalInputService = ReaderGlobalInputService()
+        globalInputService: ReaderGlobalInputService = ReaderGlobalInputService(),
+        updater: UpdateController = UpdateController()
     ) {
         self.windowRegistry = windowRegistry
         self.windowState = ReaderWindowStateController(driver: windowRegistry)
         self.chrome = ReaderChromeController()
         self.hotKeyService = hotKeyService
         self.globalInputService = globalInputService
+        self.updater = updater
+    }
+
+    func configureUpdater(flush: @escaping @MainActor () async -> Void) {
+        updater.configureLifecycle(flush: flush)
     }
 
     func register(window: NSWindow) {
@@ -56,9 +63,11 @@ final class AppRuntime {
                 }
             }
         )
+        updater.scheduleAutomaticCheck()
     }
 
     func stop() {
+        updater.cancelAutomaticCheck()
         globalInputService.stop()
         hotKeyService.stop()
         hotKeyAvailable = false
