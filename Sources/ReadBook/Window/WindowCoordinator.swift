@@ -16,11 +16,21 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         window.isOpaque = false
         window.hasShadow = true
         window.setFrameAutosaveName("ReadBook.ReaderWindow")
+        installResizeHitZones(in: window)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         NotificationCenter.default.post(name: .readBookReaderWillHide, object: nil)
         sender.orderOut(nil)
         return false
+    }
+
+    private func installResizeHitZones(in window: NSWindow) {
+        guard let contentView = window.contentView else { return }
+        guard !contentView.subviews.contains(where: { $0 is ReaderResizeView }) else { return }
+
+        let resizeView = ReaderResizeView(frame: contentView.bounds)
+        resizeView.autoresizingMask = [.width, .height]
+        contentView.addSubview(resizeView, positioned: .above, relativeTo: nil)
     }
 }

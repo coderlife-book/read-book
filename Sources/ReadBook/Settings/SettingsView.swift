@@ -1,3 +1,4 @@
+import AppKit
 import ReadBookCore
 import SwiftUI
 
@@ -29,6 +30,17 @@ struct SettingsView: View {
                         Text("\(Int(model.preferences.lineSpacing))")
                             .monospacedDigit()
                             .frame(width: 28, alignment: .trailing)
+                    }
+                }
+
+                LabeledContent("正文颜色") {
+                    HStack(spacing: 10) {
+                        ColorPicker("正文颜色", selection: textColorBinding, supportsOpacity: false)
+                            .labelsHidden()
+                        Button("跟随主题") {
+                            model.updatePreferences { $0.textColorHex = nil }
+                        }
+                        .disabled(model.preferences.textColorHex == nil)
                     }
                 }
             }
@@ -150,6 +162,21 @@ struct SettingsView: View {
     private var currentVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版"
         return "v\(version)"
+    }
+
+    private var textColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                Color(nsColor: ThemePalette.readerTextColor(
+                    theme: model.preferences.theme,
+                    overrideHex: model.preferences.textColorHex
+                ))
+            },
+            set: { color in
+                guard let hex = ThemePalette.hexString(for: NSColor(color)) else { return }
+                model.updatePreferences { $0.textColorHex = hex }
+            }
+        )
     }
 
     private func binding<T>(_ keyPath: WritableKeyPath<ReaderPreferences, T>) -> Binding<T> {

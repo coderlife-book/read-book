@@ -13,6 +13,10 @@ struct ReaderRootView: View {
 
     var body: some View {
         let palette = ThemePalette.resolve(model.preferences.theme)
+        let bodyTextColor = ThemePalette.readerTextColor(
+            theme: model.preferences.theme,
+            overrideHex: model.preferences.textColorHex
+        )
         let style = readerStyle
         let interactiveStealth = runtime.windowState.state == .interactiveStealth
         let topVisible = runtime.chrome.topVisible || interactiveStealth
@@ -24,7 +28,7 @@ struct ReaderRootView: View {
             if model.currentBook == nil {
                 emptyState(textColor: palette.text)
             } else {
-                readingSurface(style: style, palette: palette)
+                readingSurface(style: style, textColor: bodyTextColor)
                     .contentShape(Rectangle())
                     .onHover { inside in
                         if inside { runtime.chrome.bodyEntered() }
@@ -160,14 +164,14 @@ struct ReaderRootView: View {
     }
 
     @ViewBuilder
-    private func readingSurface(style: ReaderTextStyle, palette: ThemePalette) -> some View {
+    private func readingSurface(style: ReaderTextStyle, textColor: NSColor) -> some View {
         switch model.readingMode {
         case .paginated:
             PaginatedReaderView(
                 text: model.text,
                 anchor: model.position,
                 style: style,
-                textColor: palette.text,
+                textColor: textColor,
                 onPositionChanged: model.updatePosition
             )
         case .continuous:
@@ -177,7 +181,7 @@ struct ReaderRootView: View {
                     text: model.text,
                     anchor: model.position,
                     style: style,
-                    textColor: palette.text,
+                    textColor: textColor,
                     onPositionChanged: model.updatePosition
                 )
             }
