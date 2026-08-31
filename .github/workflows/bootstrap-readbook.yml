@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG title 栏交互修复版本。\n\n- 修复 title 区域无法拖动窗口的问题：恢复由 title 专属 AppKit drag region 显式触发窗口拖动\n- 保持正文区域不可拖动窗口，避免影响阅读、文本交互与滚动\n- title 区域 hover 时强制使用标准箭头 cursor，不再显示文本选择 I-beam\n- 新增 title 拖拽与 cursor-rect 回归测试，防止后续再次退化\n- 继续包含 v0.1.7 的按钮热区、边框缩放与正文颜色设置\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 原生窗口与连续滚动重构版本。\n\n- 恢复原生 macOS titlebar 拖动，视觉上隐藏系统标题文字与红黄绿按钮\n- 使用原生窗口边缘/角落 resize，删除自制 resize overlay\n- 连续阅读改用 NSTextView.scrollableTextView() 提供的原生 NSScrollView\n- production 连续滚动链路移除 VirtualTextWindow/recenter，不再在滚动边缘重建文本窗口\n- 滚动 position 写回在短暂静默后合并上报，反馈回来的同一 position 不再反向驱动 viewport，避免回弹\n- 保留隐藏滚动条、主题、字体与文字颜色、分页模式、老板模式、阅读进度与窗口外观设置\n- 新增真实 scrollWheel、viewport feedback、saved-anchor 与原生窗口契约回归测试\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
