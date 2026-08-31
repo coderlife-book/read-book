@@ -105,7 +105,7 @@ final class UpdateController {
         do {
             let checksumBytes = try await client.data(from: checksum.browserDownloadURL)
             let zipURL = try await client.download(from: archive.browserDownloadURL)
-            try UpdateChecksum.verify(fileURL: zipURL, checksumData: checksumBytes)
+            try await UpdateChecksum.verifyInBackground(fileURL: zipURL, checksumData: checksumBytes)
 
             let candidate = try await installer.extractArchive(zipURL)
             try await installer.validateCandidate(appURL: candidate, expectedVersion: latest)
