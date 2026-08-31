@@ -7,11 +7,13 @@ on:
     branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test-build-package:
     runs-on: macos-26
+    outputs:
+      version: ${{ steps.package_meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,25 +37,70 @@ jobs:
           codesign -dv --verbose=4 dist/ReadBook.app
           codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 
+      - name: Verify branding
+        run: |
+          test -s dist/ReadBook.app/Contents/Resources/ReadBook.icns
+          test -s dist/ReadBook.app/Contents/Resources/ReadBookMenuTemplate.png
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/ReadBook.app/Contents/Info.plist)" = "ReadBook.icns"
+
       - name: Gatekeeper assessment
         run: |
           spctl --assess --type execute --verbose=4 dist/ReadBook.app || true
 
-      - name: Create release archive
-        if: github.ref == 'refs/heads/main'
-        run: ditto -c -k --sequesterRsrc --keepParent dist/ReadBook.app dist/ReadBook-macOS.zip
+      - name: Create archive and checksum
+        id: package_meta
+        run: |
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/ReadBook.app/Contents/Info.plist)"
+          test -n "$VERSION"
+          ditto -c -k --sequesterRsrc --keepParent dist/ReadBook.app dist/ReadBook-macOS.zip
+          cd dist
+          shasum -a 256 ReadBook-macOS.zip > ReadBook-macOS.zip.sha256
+          shasum -a 256 -c ReadBook-macOS.zip.sha256
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish v0.1.2
-        if: github.ref == 'refs/heads/main'
+      - name: Upload installable preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReadBook-v${{ steps.package_meta.outputs.version }}-${{ github.sha }}
+          path: |
+            dist/ReadBook-macOS.zip
+            dist/ReadBook-macOS.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test-build-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified package
+        uses: actions/download-artifact@v4
+        with:
+          name: ReadBook-v${{ needs.test-build-package.outputs.version }}-${{ github.sha }}
+          path: dist
+
+      - name: Verify downloaded checksum
+        run: |
+          cd dist
+          sha256sum -c ReadBook-macOS.zip.sha256
+
+      - name: Publish immutable release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.test-build-package.outputs.version }}
         run: |
-          if gh release view v0.1.2 >/dev/null 2>&1; then
-            gh release upload v0.1.2 dist/ReadBook-macOS.zip --clobber
-          else
-            gh release create v0.1.2 \
-              dist/ReadBook-macOS.zip \
-              --target "$GITHUB_SHA" \
-              --title "ReadBook v0.1.2" \
-              --notes "修复阅读性能与窗口顶部白条。\n\n- 连续滚动改为窗口化虚拟渲染，不再把整本小说一次性塞入 TextKit\n- 默认仅渲染约 12 万 UTF-16 单元，接近边缘时自动重心定位并保持全书阅读 offset\n- 阅读窗口移除原生 .titled titlebar，彻底去除顶部系统白色区域\n- 新增连续渲染上限与 borderless 窗口回归测试\n- 保留 v0.1.1 的完整 bundle ad-hoc 签名修复\n\n说明：仍未使用 Apple Developer ID 与 notarization。首次运行可能需要右键 ReadBook.app → 打开，或到系统设置 → 隐私与安全性 → 仍要打开。"
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already exists; leaving the published binary immutable."
+            exit 0
           fi
+
+          gh release create "$TAG" \
+            dist/ReadBook-macOS.zip \
+            dist/ReadBook-macOS.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "ReadBook $TAG" \
+            --notes "ReadBook $TAG：纯净阅读与老板模式。\n\n- 正文 hover / 滚动不再唤出标题栏和章节栏，控制区改为顶部/底部热区并带独立背景\n- 标题区域支持真正的无边框窗口拖动\n- 新增老板模式：悬浮阅读、隐蔽自动隐藏、⌃⌥R 全局紧急隐藏/恢复\n- 新增纯透明、无边框、Option 临时交互与鼠标穿透\n- 新增自有 ReadBook App Icon / 菜单栏标识\n- 新增应用内检查更新、下载、SHA-256 校验和自动替换重启；从此版本之后无需每次手动下载\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
