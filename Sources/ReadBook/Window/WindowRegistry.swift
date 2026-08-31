@@ -85,7 +85,7 @@ final class WindowRegistry: ReaderWindowDriving {
     func setAppPresence(_ mode: AppPresenceMode) {
         let target = Self.desiredActivationPolicy(for: mode)
         guard Self.needsActivationPolicyChange(
-            current: NSApp.activationPolicy,
+            current: NSApp.activationPolicy(),
             targetMode: mode
         ) else { return }
 
