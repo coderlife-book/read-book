@@ -7,7 +7,7 @@ on:
     branches: ["main"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test-build-package:
@@ -29,3 +29,22 @@ jobs:
 
       - name: Package local app bundle
         run: Scripts/build-app.sh
+
+      - name: Create release archive
+        if: github.ref == 'refs/heads/main'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/ReadBook.app dist/ReadBook-macOS.zip
+
+      - name: Publish v0.1.0
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            gh release upload v0.1.0 dist/ReadBook-macOS.zip --clobber
+          else
+            gh release create v0.1.0 \
+              dist/ReadBook-macOS.zip \
+              --target "$GITHUB_SHA" \
+              --title "ReadBook v0.1.0" \
+              --notes "ReadBook 首个可用版本。\n\n- macOS 26+ 原生 TXT 小说阅读器\n- 分页 / 连续滚动双模式\n- UTF-8、UTF-16、GB18030/GBK、Big5 导入\n- 自动章节识别与目录跳转\n- 多本书与独立阅读进度\n- Widget 风格窗口、置顶、Dock/菜单栏模式\n\n说明：此构建未进行 Apple Developer 签名与 notarization，首次运行可能需要在 macOS 系统设置中手动允许。"
+          fi
