@@ -124,13 +124,16 @@ struct ReaderRootView: View {
                 onPositionChanged: model.updatePosition
             )
         case .continuous:
-            ContinuousReaderView(
-                text: model.text,
-                anchor: model.position,
-                style: style,
-                textColor: palette.text,
-                onPositionChanged: model.updatePosition
-            )
+            if let bookID = model.currentBook?.id {
+                ContinuousReaderView(
+                    bookID: bookID,
+                    text: model.text,
+                    anchor: model.position,
+                    style: style,
+                    textColor: palette.text,
+                    onPositionChanged: model.updatePosition
+                )
+            }
         }
     }
 
