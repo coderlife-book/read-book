@@ -34,7 +34,7 @@ final class ContinuousTextViewTests: XCTestCase {
     func testRapidScrollPositionChangesAreReportedOnlyAfterIdle() {
         let text = String(repeating: "滚动位置正文。\n", count: 20_000)
         var reports: [BookPosition] = []
-        let (scrollView, _, coordinator) = makeReader {
+        let (scrollView, textView, coordinator) = makeReader {
             reports.append($0)
         }
         let window = host(scrollView)
@@ -48,7 +48,11 @@ final class ContinuousTextViewTests: XCTestCase {
             textColor: .textColor
         )
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+
+        coordinator.detach()
+        scrollView.contentView.postsBoundsChangedNotifications = false
+        coordinator.attach(scrollView: scrollView, textView: textView)
         reports.removeAll()
 
         for y in [120.0, 240.0, 360.0] {
