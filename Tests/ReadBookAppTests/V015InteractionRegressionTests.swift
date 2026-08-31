@@ -9,11 +9,13 @@ final class V015InteractionRegressionTests: XCTestCase {
     func testChromeEdgeRevealUses90msDwell() {
         let scheduler = V015ManualScheduler()
         let chrome = ReaderChromeController(scheduler: scheduler)
+
         chrome.topZoneChanged(inside: true)
         scheduler.fire(milliseconds: 89)
         XCTAssertFalse(chrome.topVisible)
         scheduler.fire(milliseconds: 90)
         XCTAssertTrue(chrome.topVisible)
+
         chrome.hideAllImmediately()
         chrome.bottomZoneChanged(inside: true)
         scheduler.fire(milliseconds: 90)
@@ -24,6 +26,7 @@ final class V015InteractionRegressionTests: XCTestCase {
         let first = Chapter(id: UUID(), title: "第一章", utf16Offset: 0)
         let current = Chapter(id: UUID(), title: "第二章", utf16Offset: 100)
         let chapters = [first, current]
+
         XCTAssertEqual(
             ChapterListView.initialScrollTarget(chapters: chapters, currentChapterID: current.id),
             current.id
@@ -37,17 +40,21 @@ private final class V015ManualScheduler: DelayScheduling {
         var cancelled = false
         func cancel() { cancelled = true }
     }
+
     private struct Entry {
         let milliseconds: Int
         let token: Token
         let action: @MainActor () -> Void
     }
+
     private var entries: [Entry] = []
+
     func schedule(afterMilliseconds: Int, action: @escaping @MainActor () -> Void) -> any DelayCancellation {
         let token = Token()
         entries.append(Entry(milliseconds: afterMilliseconds, token: token, action: action))
         return token
     }
+
     func fire(milliseconds: Int) {
         let matching = entries.filter { $0.milliseconds == milliseconds }
         entries.removeAll { $0.milliseconds == milliseconds }
