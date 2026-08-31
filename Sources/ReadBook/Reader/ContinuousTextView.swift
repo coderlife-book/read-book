@@ -74,6 +74,7 @@ struct ContinuousTextView: NSViewRepresentable {
         private var currentColor: NSColor?
         private var observer: NSObjectProtocol?
         private var reportWorkItem: DispatchWorkItem?
+        private var reportGeneration = 0
         private var lastReportedOffset: Int?
         private var lastAppliedAnchor: Int?
         private var isApplyingProgrammaticChange = false
@@ -97,8 +98,7 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         func detach() {
-            reportWorkItem?.cancel()
-            reportWorkItem = nil
+            cancelPendingPositionReport()
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
         }
@@ -208,10 +208,13 @@ struct ContinuousTextView: NSViewRepresentable {
 
         private func schedulePositionReport() {
             reportWorkItem?.cancel()
+            reportGeneration &+= 1
+            let generation = reportGeneration
 
             let workItem = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self,
+                          self.reportGeneration == generation else { return }
                     self.reportWorkItem = nil
                     self.reportTopVisiblePosition()
                 }
@@ -224,6 +227,7 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         private func cancelPendingPositionReport() {
+            reportGeneration &+= 1
             reportWorkItem?.cancel()
             reportWorkItem = nil
         }
