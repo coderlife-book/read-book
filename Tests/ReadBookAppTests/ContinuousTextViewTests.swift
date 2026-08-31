@@ -6,28 +6,59 @@ import XCTest
 
 final class ContinuousTextViewTests: XCTestCase {
     @MainActor
-    func testCoordinatorRendersOnlyBoundedWindowForLargeBook() {
-        let paragraph = String(repeating: "女巫种田正文", count: 40) + "\n"
-        let text = String(repeating: paragraph, count: 5_000)
-        let total = (text as NSString).length
+    func testCoordinatorRendersWholeBookIntoNativeTextView() {
+        let text = String(repeating: "正文内容。\n", count: 10_000)
+        let (scrollView, textView, coordinator) = makeReader()
 
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 360, height: 260))
-        let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 360, height: 260))
-        scrollView.documentView = textView
-
-        let coordinator = ContinuousTextView.Coordinator(onPositionChanged: { _ in })
-        coordinator.attach(scrollView: scrollView, textView: textView)
         coordinator.update(
             bookID: UUID(),
             text: text,
-            anchor: BookPosition(utf16Offset: total / 2),
+            anchor: .init(utf16Offset: 0),
             style: .default,
             textColor: .textColor
         )
 
-        let renderedLength = (textView.string as NSString).length
-        XCTAssertLessThan(renderedLength, total)
-        XCTAssertLessThanOrEqual(renderedLength, 130_000)
+        XCTAssertEqual(textView.string, text)
+        XCTAssertEqual(textView.textStorage?.length, (text as NSString).length)
+        XCTAssertTrue(scrollView.documentView === textView)
+    }
+
+    func testProductionContinuousReaderDoesNotUseVirtualWindowPlanner() throws {
+        let source = try sourceFile("Sources/ReadBook/Reader/ContinuousTextView.swift")
+
+        XCTAssertFalse(source.contains("VirtualTextWindowPlanner"))
+        XCTAssertFalse(source.contains("scheduleRecenteringIfNeeded"))
+    }
+
+    @MainActor
+    private func makeReader(
+        onPositionChanged: @escaping (BookPosition) -> Void = { _ in }
+    ) -> (NSScrollView, NSTextView, ContinuousTextView.Coordinator) {
+        let scrollView = NSScrollView(
+            frame: NSRect(x: 0, y: 0, width: 360, height: 260)
+        )
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        let textView = NSTextView(
+            frame: NSRect(x: 0, y: 0, width: 360, height: 260)
+        )
+        scrollView.documentView = textView
+        let coordinator = ContinuousTextView.Coordinator(
+            onPositionChanged: onPositionChanged
+        )
+        coordinator.attach(scrollView: scrollView, textView: textView)
+        return (scrollView, textView, coordinator)
+    }
+
+    private func sourceFile(_ relativePath: String) throws -> String {
+        let fileURL = URL(fileURLWithPath: #filePath)
+        let root = fileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: root.appendingPathComponent(relativePath),
+            encoding: .utf8
+        )
     }
 }
 #endif
