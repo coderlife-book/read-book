@@ -47,6 +47,7 @@ final class ReaderWindowStateController {
     }
 
     func applyPreferences(_ value: ReaderPreferences) {
+        let bossModeChanged = preferences.bossModeEnabled != value.bossModeEnabled
         let preserveExplicitHide: Bool
         switch state {
         case .hidden(.explicitShortcut), .hidden(.explicitMenuAction):
@@ -57,6 +58,12 @@ final class ReaderWindowStateController {
 
         preferences = value
         guard !preserveExplicitHide else { return }
+
+        // Font, theme, always-on-top, appearance and app-presence changes are
+        // handled by their own layers. They must not cause a visible reader to
+        // be ordered front / activated again. Only turning boss mode on or off
+        // changes this controller's visible-state contract.
+        guard bossModeChanged else { return }
 
         cancelHide()
         if !value.bossModeEnabled {
