@@ -6,46 +6,54 @@ import XCTest
 
 final class WindowCoordinatorTests: XCTestCase {
     @MainActor
-    func testConfigureRemovesTitledChromeKeepsResizableAndDisablesBackgroundDrag() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 260),
-            styleMask: [.titled, .resizable, .closable],
-            backing: .buffered,
-            defer: false
-        )
+    func testConfigureKeepsNativeTitleAndResizeBehavior() {
+        let window = makeWindow()
 
-        let coordinator = WindowCoordinator()
-        coordinator.configure(window)
+        WindowCoordinator().configure(window)
 
-        XCTAssertFalse(window.styleMask.contains(.titled))
+        XCTAssertTrue(window.styleMask.contains(.titled))
         XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertTrue(window.styleMask.contains(.closable))
+        XCTAssertFalse(window.styleMask.contains(.fullSizeContentView))
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertTrue(window.titlebarAppearsTransparent)
         XCTAssertFalse(window.isMovableByWindowBackground)
     }
 
     @MainActor
     func testRegistryAppliesAppearanceAndPointerPassThrough() {
         let registry = WindowRegistry()
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 260),
-            styleMask: [.borderless, .resizable],
-            backing: .buffered,
-            defer: false
-        )
+        let window = makeWindow()
         registry.register(window)
 
-        registry.applyAppearance(.transparent)
+        var preferences = ReaderPreferences.defaults
+        preferences.appPresenceMode = .normal
+        preferences.theme = .soft
+
+        preferences.windowAppearance = .transparent
+        registry.apply(preferences)
         XCTAssertFalse(window.hasShadow)
-        XCTAssertFalse(window.isOpaque)
+        XCTAssertTrue(window.backgroundColor.isEqual(NSColor.clear))
+
+        preferences.windowAppearance = .frameless
+        preferences.framelessBackgroundOpacity = 0.18
+        registry.apply(preferences)
+        XCTAssertFalse(window.hasShadow)
+        XCTAssertEqual(window.backgroundColor.alphaComponent, 0.18, accuracy: 0.01)
+
+        preferences.windowAppearance = .card
+        registry.apply(preferences)
+        XCTAssertTrue(window.hasShadow)
+        XCTAssertTrue(
+            window.backgroundColor.isEqual(
+                ThemePalette.resolve(.soft).background
+            )
+        )
 
         registry.setPointerPassThrough(true)
         XCTAssertTrue(window.ignoresMouseEvents)
         registry.setPointerPassThrough(false)
         XCTAssertFalse(window.ignoresMouseEvents)
-
-        registry.applyAppearance(.frameless)
-        XCTAssertFalse(window.hasShadow)
-        registry.applyAppearance(.card)
-        XCTAssertTrue(window.hasShadow)
     }
 
     @MainActor
@@ -92,6 +100,16 @@ final class WindowCoordinatorTests: XCTestCase {
         let frame = CGRect(x: 120, y: 140, width: 360, height: 260)
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
         XCTAssertEqual(WindowRegistry.revalidatedFrame(frame, visibleFrames: [screen]), frame)
+    }
+
+    @MainActor
+    private func makeWindow() -> NSWindow {
+        NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 260),
+            styleMask: [.titled, .resizable, .closable],
+            backing: .buffered,
+            defer: false
+        )
     }
 }
 #endif
