@@ -32,6 +32,38 @@ jobs:
           Path('/tmp/readbook-source.tar.gz').write_bytes(archive)
           PY
           tar -xzf /tmp/readbook-source.tar.gz
+          rm -f .ci/swift-test-error.txt
+
+      - name: Apply macOS compiler fixes discovered by CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('Sources/ReadBook/Reader/ContinuousTextView.swift')
+          s = p.read_text()
+          s = s.replace(
+              'textView.maxSize = NSSize(width: .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)',
+              'textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)'
+          )
+          if '    @MainActor\n    final class Coordinator: NSObject {' not in s:
+              s = s.replace(
+                  '    final class Coordinator: NSObject {',
+                  '    @MainActor\n    final class Coordinator: NSObject {'
+              )
+          s = s.replace(
+              '            ) { [weak self] _ in\n                self?.reportTopVisiblePosition()\n            }',
+              '            ) { [weak self] _ in\n                Task { @MainActor in\n                    self?.reportTopVisiblePosition()\n                }\n            }'
+          )
+          p.write_text(s)
+
+          p = Path('Tests/ReadBookCoreTests/PaginationEngineTests.swift')
+          s = p.read_text()
+          if not s.startswith('import CoreFoundation\n'):
+              s = 'import CoreFoundation\n' + s
+          p.write_text(s)
+          PY
 
       - name: Toolchain
         run: |
@@ -66,6 +98,12 @@ jobs:
           if [ ! -f .ci/swift-test-error.txt ]; then
             exit 0
           fi
+          cp .ci/swift-test-error.txt /tmp/swift-test-error.txt
+          git fetch origin feature/readbook-v1
+          git reset --hard origin/feature/readbook-v1
+          git clean -fd
+          mkdir -p .ci
+          cp /tmp/swift-test-error.txt .ci/swift-test-error.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .ci/swift-test-error.txt
