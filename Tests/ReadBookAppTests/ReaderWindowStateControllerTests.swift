@@ -39,8 +39,12 @@ final class ReaderWindowStateControllerTests: XCTestCase {
         var readerFrameInScreen: CGRect? = CGRect(x: 100, y: 100, width: 360, height: 260)
         var visible = true
         var ignoresMouseEvents = false
+        var showCount = 0
 
-        func showReader(activate: Bool) { visible = true }
+        func showReader(activate: Bool) {
+            visible = true
+            showCount += 1
+        }
         func hideReader() { visible = false }
         func setPointerPassThrough(_ enabled: Bool) { ignoresMouseEvents = enabled }
     }
@@ -169,5 +173,19 @@ final class ReaderWindowStateControllerTests: XCTestCase {
 
         XCTAssertEqual(sut.state, .hidden(.explicitShortcut))
         XCTAssertFalse(driver.visible)
+    }
+
+    func testAlwaysOnTopRefreshDoesNotReshowVisibleReader() {
+        let driver = Driver()
+        let sut = ReaderWindowStateController(driver: driver)
+        sut.applyPreferences(.defaults)
+        let baselineShows = driver.showCount
+
+        var changed = ReaderPreferences.defaults
+        changed.alwaysOnTop = true
+        sut.applyPreferences(changed)
+
+        XCTAssertEqual(driver.showCount, baselineShows)
+        XCTAssertEqual(sut.state, .normal)
     }
 }
