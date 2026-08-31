@@ -72,7 +72,7 @@ struct ContinuousTextView: NSViewRepresentable {
         private var sourceText = ""
         private var currentStyle: ReaderTextStyle?
         private var currentColor: NSColor?
-        private var observer: NSObjectProtocol?
+        private weak var observedClipView: NSClipView?
         private var reportWorkItem: DispatchWorkItem?
         private var reportGeneration = 0
         private var lastReportedOffset: Int?
@@ -84,23 +84,35 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         func attach(scrollView: NSScrollView, textView: NSTextView) {
+            if observedClipView != nil {
+                detach()
+            }
+
             self.scrollView = scrollView
             self.textView = textView
-            observer = NotificationCenter.default.addObserver(
-                forName: NSView.boundsDidChangeNotification,
-                object: scrollView.contentView,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    self?.schedulePositionReport()
-                }
-            }
+            observedClipView = scrollView.contentView
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollBoundsDidChange(_:)),
+                name: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView
+            )
         }
 
         func detach() {
             cancelPendingPositionReport()
-            if let observer { NotificationCenter.default.removeObserver(observer) }
-            observer = nil
+            if let observedClipView {
+                NotificationCenter.default.removeObserver(
+                    self,
+                    name: NSView.boundsDidChangeNotification,
+                    object: observedClipView
+                )
+            }
+            observedClipView = nil
+        }
+
+        @objc private func scrollBoundsDidChange(_ notification: Notification) {
+            schedulePositionReport()
         }
 
         func update(
