@@ -22,6 +22,23 @@ final class UpdateBackgroundWorkTests: XCTestCase {
         XCTAssertEqual(result.status, 0)
     }
 
+    func testUpdaterSubprocessHasHardTimeout() async {
+        let worker = UpdateBackgroundWorker(timeoutSeconds: 0.10)
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        do {
+            _ = try await worker.runProcess("/bin/sleep", ["5"])
+            XCTFail("Expected updater subprocess timeout")
+        } catch let error as UpdateBackgroundWorkerError {
+            XCTAssertEqual(error, .timedOut("/bin/sleep"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertLessThan(start.duration(to: clock.now), .seconds(1))
+    }
+
     func testInstallerExtractionUsesInjectedAsyncCommandRunner() async throws {
         let runner = RecordingUpdateCommandRunner()
         let installer = UpdateInstaller(fileManager: .default, commandRunner: runner)
