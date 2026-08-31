@@ -90,7 +90,7 @@ struct SettingsView: View {
                     set: { value in runtime.setBossProfile(value, using: model) }
                 )) {
                     Text("悬浮阅读").tag(BossModeProfile.floatingReading)
-                    Text("隐蔽（移出隐藏）").tag(BossModeProfile.concealed)
+                    Text("隐蔽").tag(BossModeProfile.concealed)
                 }
 
                 Toggle("锁定为可交互（本次运行）", isOn: Binding(
@@ -98,20 +98,13 @@ struct SettingsView: View {
                     set: { runtime.setLockInteractive($0) }
                 ))
 
-                LabeledContent("紧急隐藏") {
-                    Text("⌃⌥R")
-                        .monospaced()
-                }
-
-                Text("透明悬浮时鼠标默认穿透到后面的工作软件；按住 Option 可临时操作阅读器。正文区域悬停和滚动不会再唤出标题栏或章节栏。")
+                Text("安全模式已启用：ReadBook 不注册全局键盘快捷键、不监听 Option，也不监听系统级鼠标移动。显示/隐藏与恢复交互请使用菜单栏。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if !runtime.hotKeyAvailable {
-                    Text("当前全局快捷键未注册成功，仍可通过菜单栏显示/隐藏阅读器。")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                Text("正文区域悬停和滚动不会唤出标题栏或章节栏。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("窗口") {
@@ -151,7 +144,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(16)
-        .frame(width: 470, height: 640)
+        .frame(width: 470, height: 610)
     }
 
     private var currentVersion: String {
