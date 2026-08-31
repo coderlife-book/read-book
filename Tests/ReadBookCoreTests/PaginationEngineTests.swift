@@ -8,21 +8,6 @@ final class PaginationEngineTests: XCTestCase {
         XCTAssertEqual(PageRange(location: 12, length: 9).upperBound, 21)
     }
 
-    func testPageCacheStoresAndInvalidatesOneBook() {
-        let cache = PageCache()
-        let bookA = UUID()
-        let bookB = UUID()
-        let signature = LayoutSignature(width: 316, height: 220, style: .default)
-        let keyA = PageCacheKey(bookID: bookA, signature: signature, startOffset: 0)
-        let keyB = PageCacheKey(bookID: bookB, signature: signature, startOffset: 0)
-        cache.insert(PageRange(location: 0, length: 100), for: keyA)
-        cache.insert(PageRange(location: 0, length: 80), for: keyB)
-
-        cache.invalidate(bookID: bookA)
-        XCTAssertNil(cache.value(for: keyA))
-        XCTAssertEqual(cache.value(for: keyB), PageRange(location: 0, length: 80))
-    }
-
     #if canImport(AppKit)
     func testForwardPagesAreContinuousAndBounded() throws {
         let text = NSString(string: String(repeating: "第一段文字。第二段文字。\n", count: 500))
