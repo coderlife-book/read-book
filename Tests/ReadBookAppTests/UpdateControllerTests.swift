@@ -44,6 +44,20 @@ final class UpdateControllerTests: XCTestCase {
         XCTAssertFalse(sut.isPresented)
     }
 
+    func testBackgroundCheckFindsNewerReleaseWithoutPresentingWindow() async {
+        let release = Self.release(version: "0.1.4")
+        let sut = UpdateController(
+            client: FakeUpdateReleaseClient(release: release),
+            currentVersionProvider: { AppVersion("0.1.3")! },
+            currentAppURLProvider: { URL(fileURLWithPath: "/tmp/ReadBook.app") }
+        )
+
+        await sut.check(manual: false)
+
+        XCTAssertEqual(sut.state, .available(release))
+        XCTAssertFalse(sut.isPresented)
+    }
+
     func testChecksumAcceptsKnownSHA256AndRejectsMismatch() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReadBookChecksumTests-\(UUID().uuidString)", isDirectory: true)
