@@ -13,6 +13,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
     public var lineSpacing: Double
     public var paragraphSpacing: Double
     public var theme: ReaderTheme
+    public var textColorHex: String?
     public var alwaysOnTop: Bool
     public var appPresenceMode: AppPresenceMode
     public var bossModeEnabled: Bool
@@ -27,6 +28,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         lineSpacing: Double,
         paragraphSpacing: Double,
         theme: ReaderTheme,
+        textColorHex: String? = nil,
         alwaysOnTop: Bool,
         appPresenceMode: AppPresenceMode,
         bossModeEnabled: Bool = false,
@@ -40,6 +42,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         self.lineSpacing = lineSpacing
         self.paragraphSpacing = paragraphSpacing
         self.theme = theme
+        self.textColorHex = textColorHex
         self.alwaysOnTop = alwaysOnTop
         self.appPresenceMode = appPresenceMode
         self.bossModeEnabled = bossModeEnabled
@@ -55,6 +58,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         case lineSpacing
         case paragraphSpacing
         case theme
+        case textColorHex
         case alwaysOnTop
         case appPresenceMode
         case bossModeEnabled
@@ -71,6 +75,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         lineSpacing = try container.decode(Double.self, forKey: .lineSpacing)
         paragraphSpacing = try container.decode(Double.self, forKey: .paragraphSpacing)
         theme = try container.decode(ReaderTheme.self, forKey: .theme)
+        textColorHex = try container.decodeIfPresent(String.self, forKey: .textColorHex)
         alwaysOnTop = try container.decode(Bool.self, forKey: .alwaysOnTop)
         appPresenceMode = try container.decode(AppPresenceMode.self, forKey: .appPresenceMode)
         bossModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .bossModeEnabled) ?? false
@@ -89,6 +94,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         try container.encode(lineSpacing, forKey: .lineSpacing)
         try container.encode(paragraphSpacing, forKey: .paragraphSpacing)
         try container.encode(theme, forKey: .theme)
+        try container.encodeIfPresent(textColorHex, forKey: .textColorHex)
         try container.encode(alwaysOnTop, forKey: .alwaysOnTop)
         try container.encode(appPresenceMode, forKey: .appPresenceMode)
         try container.encode(bossModeEnabled, forKey: .bossModeEnabled)
@@ -108,6 +114,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         lineSpacing: 8,
         paragraphSpacing: 9,
         theme: .soft,
+        textColorHex: nil,
         alwaysOnTop: false,
         appPresenceMode: .normal,
         bossModeEnabled: false,

@@ -10,14 +10,16 @@ struct ReaderToolbar: View {
     let onPin: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Button(action: onLibrary) {
-                Image(systemName: "books.vertical")
+                ToolbarIconLabel(systemName: "books.vertical")
             }
             .help("目录与最近阅读")
 
             ZStack(alignment: .leading) {
                 ReaderDragRegion()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 HStack(spacing: 6) {
                     Text(title)
                         .font(.system(size: 12, weight: .medium))
@@ -26,23 +28,26 @@ struct ReaderToolbar: View {
                 }
                 .allowsHitTesting(false)
             }
-            .frame(maxWidth: .infinity, minHeight: 28)
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
             .help("拖动窗口")
 
             Button {
                 onModeChange(readingMode == .paginated ? .continuous : .paginated)
             } label: {
-                Image(systemName: readingMode == .paginated ? "rectangle.split.1x2" : "text.justify")
+                ToolbarIconLabel(
+                    systemName: readingMode == .paginated ? "rectangle.split.1x2" : "text.justify"
+                )
             }
             .help(readingMode == .paginated ? "切换到滚动阅读" : "切换到分页阅读")
 
             Button(action: onPin) {
-                Image(systemName: alwaysOnTop ? "pin.fill" : "pin")
+                ToolbarIconLabel(systemName: alwaysOnTop ? "pin.fill" : "pin")
             }
             .help(alwaysOnTop ? "取消置顶" : "始终置顶")
 
             SettingsLink {
-                Image(systemName: "ellipsis")
+                ToolbarIconLabel(systemName: "ellipsis")
             }
             .help("设置")
         }
@@ -50,5 +55,22 @@ struct ReaderToolbar: View {
         .font(.system(size: 13, weight: .medium))
         .padding(.horizontal, 14)
         .frame(height: 42)
+    }
+}
+
+private struct ToolbarIconLabel: View {
+    let systemName: String
+    @State private var isHovered = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .frame(width: 30, height: 30)
+            .contentShape(Rectangle())
+            .background {
+                Circle()
+                    .fill(Color.gray.opacity(isHovered ? 0.16 : 0))
+            }
+            .onHover { isHovered = $0 }
+            .animation(.easeOut(duration: 0.10), value: isHovered)
     }
 }
