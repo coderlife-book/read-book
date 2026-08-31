@@ -22,7 +22,7 @@ ReadBook 是一个个人自用的 macOS 原生 TXT 小说阅读器。它不是 W
 ## 系统要求
 
 - macOS 26+
-- Apple Silicon / Intel 均可由 Swift Package 构建；主要使用目标是 Apple Silicon MacBook Pro
+- 主要使用与 CI 验证目标：Apple Silicon Mac
 - Xcode 26+ / Swift 6
 
 ## 开发运行
@@ -57,7 +57,9 @@ open dist/ReadBook.app
 
 `content.txt` 在导入阶段统一转换为 UTF-8。每本书的权威阅读位置是 UTF-16 offset，而不是页码。
 
-如果 `library.json` 损坏，会从书籍目录重建索引；如果单本 `metadata.json` 损坏但 `content.txt` 仍存在，会重新扫描正文和章节并生成可继续阅读的恢复元数据。
+`library.json` 只是可重建的书库索引；每本书自己的 `metadata.json` 保存标题、阅读位置、最后阅读时间、章节索引等单书元数据。这样阅读位置只写一处，不存在双写状态漂移。
+
+如果 `library.json` 缺失或损坏，会从 `Books/` 中已有小说重建索引；如果单本 `metadata.json` 损坏但 `content.txt` 仍存在，会重新扫描正文和章节并生成可继续阅读的恢复元数据。
 
 ## 快捷操作
 
