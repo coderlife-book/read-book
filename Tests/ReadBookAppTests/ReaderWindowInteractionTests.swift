@@ -20,13 +20,28 @@ final class ReaderWindowInteractionTests: XCTestCase {
         XCTAssertEqual(window.frame.minX, startFrame.minX + 40, accuracy: 0.5)
     }
 
+    func testDraggingBottomResizeHitZoneChangesWindowHeight() throws {
+        let window = makeWindow()
+        WindowCoordinator().configure(window)
+        let startFrame = window.frame
+        let contentView = try XCTUnwrap(window.contentView)
+        let x = contentView.bounds.midX
+        let target = try XCTUnwrap(contentView.hitTest(NSPoint(x: x, y: 1)))
+
+        target.mouseDown(with: try mouseEvent(.leftMouseDown, at: NSPoint(x: x, y: 1), in: window))
+        target.mouseDragged(with: try mouseEvent(.leftMouseDragged, at: NSPoint(x: x, y: 31), in: window))
+
+        XCTAssertEqual(window.frame.height, startFrame.height - 30, accuracy: 0.5)
+        XCTAssertEqual(window.frame.minY, startFrame.minY + 30, accuracy: 0.5)
+    }
+
     func testResizeHitZoneUsesResizeCursor() throws {
         let window = makeWindow()
         WindowCoordinator().configure(window)
         let contentView = try XCTUnwrap(window.contentView)
         let y = contentView.bounds.midY
         let target = try XCTUnwrap(contentView.hitTest(NSPoint(x: 1, y: y)))
-        let event = try mouseEvent(.cursorUpdate, at: NSPoint(x: 1, y: y), in: window)
+        let event = try mouseEvent(.mouseMoved, at: NSPoint(x: 1, y: y), in: window)
 
         NSCursor.arrow.set()
         target.cursorUpdate(with: event)
