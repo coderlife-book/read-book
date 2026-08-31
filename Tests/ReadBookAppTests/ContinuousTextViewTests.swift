@@ -130,13 +130,17 @@ final class ContinuousTextViewTests: XCTestCase {
 
         let yBeforeWheel = scrollView.contentView.bounds.minY
         scrollView.scrollWheel(with: try scrollEvent(deltaY: -180))
+        NotificationCenter.default.post(
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
         RunLoop.main.run(until: Date().addingTimeInterval(0.12))
 
         let yAfterScroll = scrollView.contentView.bounds.minY
         XCTAssertNotEqual(yAfterScroll, yBeforeWheel, accuracy: 0.5)
 
         guard let reported else {
-            XCTFail("Expected native scroll position to be reported")
+            XCTFail("Expected scrolled viewport position to be reported")
             return
         }
 
