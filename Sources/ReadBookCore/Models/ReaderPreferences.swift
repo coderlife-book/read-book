@@ -116,7 +116,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         theme: .soft,
         textColorHex: nil,
         alwaysOnTop: false,
-        appPresenceMode: .widgetStyle,
+        appPresenceMode: .normal,
         bossModeEnabled: false,
         bossModeProfile: .floatingReading,
         windowAppearance: .card,

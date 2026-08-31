@@ -39,4 +39,10 @@ enum UpdateChecksum {
             throw UpdateChecksumError.mismatch
         }
     }
+
+    static func verifyInBackground(fileURL: URL, checksumData: Data) async throws {
+        try await Task.detached(priority: .utility) {
+            try verify(fileURL: fileURL, checksumData: checksumData)
+        }.value
+    }
 }

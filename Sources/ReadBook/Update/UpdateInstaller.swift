@@ -26,34 +26,31 @@ enum UpdateInstallerError: LocalizedError {
 @MainActor
 final class UpdateInstaller {
     private let fileManager: FileManager
+    private let commandRunner: any UpdateCommandRunning
 
-    init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default,
+        commandRunner: any UpdateCommandRunning = UpdateBackgroundWorker()
+    ) {
         self.fileManager = fileManager
+        self.commandRunner = commandRunner
     }
 
-    func extractArchive(_ archiveURL: URL) throws -> URL {
+    func extractArchive(_ archiveURL: URL) async throws -> URL {
         let directory = fileManager.temporaryDirectory
             .appendingPathComponent("ReadBookCandidate-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        let result = try run("/usr/bin/ditto", ["-x", "-k", archiveURL.path, directory.path])
+        let result = try await commandRunner.runProcess(
+            "/usr/bin/ditto",
+            ["-x", "-k", archiveURL.path, directory.path]
+        )
         guard result.status == 0 else {
             throw UpdateInstallerError.extractionFailed(result.stderr)
         }
-        let direct = directory.appendingPathComponent("ReadBook.app", isDirectory: true)
-        if fileManager.fileExists(atPath: direct.path) { return direct }
-        if let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) {
-            for case let url as URL in enumerator where url.lastPathComponent == "ReadBook.app" {
-                return url
-            }
-        }
-        throw UpdateInstallerError.candidateMissing
+        return try locateCandidate(in: directory)
     }
 
-    func validateCandidate(appURL: URL, expectedVersion: AppVersion) throws {
+    func validateCandidate(appURL: URL, expectedVersion: AppVersion) async throws {
         guard let bundle = Bundle(url: appURL),
               bundle.bundleIdentifier == "com.coderlife.readbook" else {
             throw UpdateInstallerError.invalidBundleIdentifier
@@ -67,7 +64,10 @@ final class UpdateInstaller {
               fileManager.fileExists(atPath: executableURL.path) else {
             throw UpdateInstallerError.candidateMissing
         }
-        let result = try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", appURL.path])
+        let result = try await commandRunner.runProcess(
+            "/usr/bin/codesign",
+            ["--verify", "--deep", "--strict", "--verbose=2", appURL.path]
+        )
         guard result.status == 0 else {
             throw UpdateInstallerError.invalidSignature(result.stderr)
         }
@@ -97,9 +97,15 @@ final class UpdateInstaller {
         CURRENT=\(current)
         CANDIDATE=\(candidate)
         BACKUP=\(backup)
+        WAIT_TICKS=0
+        MAX_WAIT_TICKS=150
 
         while /bin/kill -0 "$PID" 2>/dev/null; do
+          if [ "$WAIT_TICKS" -ge "$MAX_WAIT_TICKS" ]; then
+            exit 20
+          fi
           /bin/sleep 0.2
+          WAIT_TICKS=$((WAIT_TICKS + 1))
         done
 
         /bin/rm -rf "$BACKUP"
@@ -138,17 +144,19 @@ final class UpdateInstaller {
         }
     }
 
-    private func run(_ executable: String, _ arguments: [String]) throws -> (status: Int32, stderr: String) {
-        let process = Process()
-        let stderr = Pipe()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = stderr
-        try process.run()
-        process.waitUntilExit()
-        let data = stderr.fileHandleForReading.readDataToEndOfFile()
-        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+    private func locateCandidate(in directory: URL) throws -> URL {
+        let direct = directory.appendingPathComponent("ReadBook.app", isDirectory: true)
+        if fileManager.fileExists(atPath: direct.path) { return direct }
+        if let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for case let url as URL in enumerator where url.lastPathComponent == "ReadBook.app" {
+                return url
+            }
+        }
+        throw UpdateInstallerError.candidateMissing
     }
 
     private func shellQuote(_ value: String) -> String {

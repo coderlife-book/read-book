@@ -23,6 +23,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(p.lineSpacing, 8)
         XCTAssertEqual(p.paragraphSpacing, 9)
         XCTAssertEqual(p.theme, .soft)
-        XCTAssertEqual(p.appPresenceMode, .widgetStyle)
+        XCTAssertEqual(p.appPresenceMode, .normal)
     }
 }

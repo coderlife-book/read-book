@@ -22,6 +22,35 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(try PreferencesStore(defaults: defaults).load(), .defaults)
     }
 
+    func testV016SafetyMigrationMovesExistingWidgetModeToNormalOnce() throws {
+        let suite = "ReadBookTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PreferencesStore(defaults: defaults)
+        var legacy = ReaderPreferences.defaults
+        legacy.appPresenceMode = .widgetStyle
+        try store.save(legacy)
+
+        let migrated = try store.load()
+
+        XCTAssertEqual(migrated.appPresenceMode, .normal)
+        XCTAssertTrue(defaults.bool(forKey: "readerSafetyPresenceMigration.v016"))
+    }
+
+    func testV016SafetyMigrationDoesNotOverrideLaterUserChoice() throws {
+        let suite = "ReadBookTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PreferencesStore(defaults: defaults)
+
+        _ = try store.load()
+        var chosen = ReaderPreferences.defaults
+        chosen.appPresenceMode = .widgetStyle
+        try store.save(chosen)
+
+        XCTAssertEqual(try store.load().appPresenceMode, .widgetStyle)
+    }
+
     func testStealthDefaultsAreSafeForExistingUsers() {
         let value = ReaderPreferences.defaults
         XCTAssertFalse(value.bossModeEnabled)

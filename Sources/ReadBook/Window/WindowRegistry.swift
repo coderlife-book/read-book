@@ -48,6 +48,7 @@ final class WindowRegistry: ReaderWindowDriving {
     }
 
     func setPointerPassThrough(_ enabled: Bool) {
+        guard readerWindow?.ignoresMouseEvents != enabled else { return }
         readerWindow?.ignoresMouseEvents = enabled
     }
 
@@ -57,18 +58,38 @@ final class WindowRegistry: ReaderWindowDriving {
         readerWindow.isOpaque = false
         switch appearance {
         case .card:
-            readerWindow.hasShadow = true
+            if !readerWindow.hasShadow { readerWindow.hasShadow = true }
         case .frameless, .transparent:
-            readerWindow.hasShadow = false
+            if readerWindow.hasShadow { readerWindow.hasShadow = false }
         }
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
-        readerWindow?.level = enabled ? .floating : .normal
+        guard let readerWindow else { return }
+        let target: NSWindow.Level = enabled ? .floating : .normal
+        guard readerWindow.level != target else { return }
+        readerWindow.level = target
+    }
+
+    static func desiredActivationPolicy(for mode: AppPresenceMode) -> NSApplication.ActivationPolicy {
+        mode == .widgetStyle ? .accessory : .regular
+    }
+
+    static func needsActivationPolicyChange(
+        current: NSApplication.ActivationPolicy,
+        targetMode: AppPresenceMode
+    ) -> Bool {
+        current != desiredActivationPolicy(for: targetMode)
     }
 
     func setAppPresence(_ mode: AppPresenceMode) {
-        NSApp.setActivationPolicy(mode == .widgetStyle ? .accessory : .regular)
+        let target = Self.desiredActivationPolicy(for: mode)
+        guard Self.needsActivationPolicyChange(
+            current: NSApp.activationPolicy(),
+            targetMode: mode
+        ) else { return }
+
+        NSApp.setActivationPolicy(target)
         if mode == .normal {
             NSApp.activate(ignoringOtherApps: true)
         }

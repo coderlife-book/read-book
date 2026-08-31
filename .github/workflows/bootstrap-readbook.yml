@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 稳定性修复。\n\n- 移除自定义 NSWindow.performDrag(with:) 鼠标 tracking loop，拖动区改用 AppKit 原生 mouseDownCanMoveWindow\n- 置顶、字体、主题等无关偏好变化不再让状态机重新 show/activate 阅读器窗口\n- 打开目录时默认滚动并定位到当前章节\n- 顶部 title 与底部章节信息的边缘 hover 延迟由 250ms 降到 90ms\n- 继续保持 v0.1.4 的安全策略：不注册全局键盘、Option 或系统级鼠标监听\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 稳定性硬化版本。\n\n- 应用退出不再等待异步阅读进度保存，避免 ReadBook 拖住 macOS 注销、重启或关机\n- 分页触控板翻页移除最后一个 NSEvent 本地 monitor，滚轮事件仅由阅读视图自己处理\n- 窗口置顶、鼠标穿透、阴影与 App activation policy 改为幂等更新，减少无意义的 AppKit 重入\n- 更新包 SHA-256、ditto 解压与 codesign 校验移出 MainActor，不再阻塞阅读器 UI\n- 更新子进程增加 60 秒硬超时；替换 helper 等旧进程退出增加 30 秒硬超时，消除无限等待路径\n- v0.1.6 首次启动一次性切到普通 App 模式，使 ReadBook 出现在 Dock/强制退出应用中；之后仍可手动切回隐藏 Dock\n- 保持无全局键盘、Option、系统级鼠标监听，以及原生 mouseDownCanMoveWindow 拖动策略\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
