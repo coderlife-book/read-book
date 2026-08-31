@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 阅读交互优化版本。\n\n- 顶栏图标按钮扩大为更易点击的热区，hover 时提供浅灰圆形反馈\n- title 区域可直接拖动阅读器窗口，减少对精确命中位置的依赖\n- 窗口四边与四角新增明确的缩放命中区域和对应 resize 光标，可直接调整宽高\n- 设置中新增正文颜色选择，并支持一键恢复为跟随主题；分页与连续滚动模式同步生效\n- 兼容旧版偏好配置，未设置自定义颜色时保持原主题行为\n- 继续包含 v0.1.6 的无卡死稳定性保护，不重新引入全局键盘、Option 或系统级鼠标监听\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG title 栏交互修复版本。\n\n- 修复 title 区域无法拖动窗口的问题：恢复由 title 专属 AppKit drag region 显式触发窗口拖动\n- 保持正文区域不可拖动窗口，避免影响阅读、文本交互与滚动\n- title 区域 hover 时强制使用标准箭头 cursor，不再显示文本选择 I-beam\n- 新增 title 拖拽与 cursor-rect 回归测试，防止后续再次退化\n- 继续包含 v0.1.7 的按钮热区、边框缩放与正文颜色设置\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
