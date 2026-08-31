@@ -5,7 +5,12 @@ struct UpdateProcessResult: Sendable, Equatable {
     let stderr: String
 }
 
-struct UpdateBackgroundWorker: Sendable {
+@MainActor
+protocol UpdateCommandRunning {
+    func runProcess(_ executable: String, _ arguments: [String]) async throws -> UpdateProcessResult
+}
+
+struct UpdateBackgroundWorker: Sendable, UpdateCommandRunning {
     func runProcess(_ executable: String, _ arguments: [String]) async throws -> UpdateProcessResult {
         try await Task.detached(priority: .utility) {
             let process = Process()
