@@ -6,11 +6,6 @@ import XCTest
 
 @MainActor
 final class V015InteractionRegressionTests: XCTestCase {
-    func testDragViewDelegatesWindowMovementToAppKit() {
-        let view = ReaderDragView(frame: .zero)
-        XCTAssertTrue(view.mouseDownCanMoveWindow)
-    }
-
     func testChromeEdgeRevealUses90msDwell() {
         let scheduler = V015ManualScheduler()
         let chrome = ReaderChromeController(scheduler: scheduler)

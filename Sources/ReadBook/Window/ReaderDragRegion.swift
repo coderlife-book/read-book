@@ -12,8 +12,16 @@ struct ReaderDragRegion: NSViewRepresentable {
 final class ReaderDragView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
-    // Let AppKit perform normal window movement. Do not call
-    // NSWindow.performDrag(with:) ourselves: that starts an explicit event
-    // tracking loop and is unnecessary for a simple draggable title region.
-    override var mouseDownCanMoveWindow: Bool { true }
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .arrow)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        NSCursor.arrow.set()
+    }
 }
