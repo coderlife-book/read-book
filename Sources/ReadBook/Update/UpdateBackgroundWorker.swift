@@ -41,7 +41,7 @@ struct UpdateBackgroundWorker: Sendable, UpdateCommandRunning {
         }.value
     }
 
-    private static func runBlockingProcess(
+    nonisolated private static func runBlockingProcess(
         executable: String,
         arguments: [String],
         timeoutSeconds: TimeInterval
