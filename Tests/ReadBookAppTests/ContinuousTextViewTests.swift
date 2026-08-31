@@ -96,19 +96,7 @@ final class ContinuousTextViewTests: XCTestCase {
         let startY = scrollView.contentView.bounds.minY
         XCTAssertGreaterThan(startY, 0)
 
-        let cgEvent = try XCTUnwrap(
-            CGEvent(
-                scrollWheelEvent2Source: nil,
-                units: .pixel,
-                wheelCount: 1,
-                wheel1: -180,
-                wheel2: 0,
-                wheel3: 0
-            )
-        )
-        let event = try XCTUnwrap(NSEvent(cgEvent: cgEvent))
-
-        scrollView.scrollWheel(with: event)
+        scrollView.scrollWheel(with: try scrollEvent(deltaY: -180))
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
 
         XCTAssertNotEqual(
@@ -119,8 +107,9 @@ final class ContinuousTextViewTests: XCTestCase {
     }
 
     @MainActor
-    func testReportedPositionFedBackDoesNotSnapViewport() {
+    func testReportedPositionFedBackDoesNotSnapViewport() throws {
         let text = String(repeating: "反馈回路正文。\n", count: 20_000)
+        let total = (text as NSString).length
         let bookID = UUID()
         var reported: BookPosition?
         let (scrollView, _, coordinator) = makeReader {
@@ -132,24 +121,25 @@ final class ContinuousTextViewTests: XCTestCase {
         coordinator.update(
             bookID: bookID,
             text: text,
-            anchor: .init(utf16Offset: 0),
+            anchor: .init(utf16Offset: total / 3),
             style: .default,
             textColor: .textColor
         )
         RunLoop.main.run(until: Date().addingTimeInterval(0.10))
         reported = nil
 
-        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 360))
-        scrollView.reflectScrolledClipView(scrollView.contentView)
+        let yBeforeWheel = scrollView.contentView.bounds.minY
+        scrollView.scrollWheel(with: try scrollEvent(deltaY: -180))
         RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+
+        let yAfterScroll = scrollView.contentView.bounds.minY
+        XCTAssertNotEqual(yAfterScroll, yBeforeWheel, accuracy: 0.5)
 
         guard let reported else {
             XCTFail("Expected native scroll position to be reported")
             return
         }
-        XCTAssertGreaterThan(reported.utf16Offset, 0)
 
-        let yAfterScroll = scrollView.contentView.bounds.minY
         coordinator.update(
             bookID: bookID,
             text: text,
@@ -163,6 +153,20 @@ final class ContinuousTextViewTests: XCTestCase {
             yAfterScroll,
             accuracy: 1.0
         )
+    }
+
+    private func scrollEvent(deltaY: Int32) throws -> NSEvent {
+        let cgEvent = try XCTUnwrap(
+            CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .pixel,
+                wheelCount: 1,
+                wheel1: deltaY,
+                wheel2: 0,
+                wheel3: 0
+            )
+        )
+        return try XCTUnwrap(NSEvent(cgEvent: cgEvent))
     }
 
     @MainActor
