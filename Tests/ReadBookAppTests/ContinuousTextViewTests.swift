@@ -7,6 +7,20 @@ import XCTest
 
 final class ContinuousTextViewTests: XCTestCase {
     @MainActor
+    func testNativeFactoryCreatesCleanScrollableTextView() throws {
+        let scrollView = ContinuousTextView.makeNativeScrollView()
+        let textView = try XCTUnwrap(scrollView.documentView as? NSTextView)
+
+        XCTAssertFalse(scrollView.hasVerticalScroller)
+        XCTAssertFalse(scrollView.hasHorizontalScroller)
+        XCTAssertFalse(scrollView.drawsBackground)
+        XCTAssertFalse(textView.isEditable)
+        XCTAssertTrue(textView.isSelectable)
+        XCTAssertFalse(textView.drawsBackground)
+        XCTAssertTrue(textView.layoutManager?.allowsNonContiguousLayout ?? false)
+    }
+
+    @MainActor
     func testCoordinatorRendersWholeBookIntoNativeTextView() {
         let text = String(repeating: "正文内容。\n", count: 10_000)
         let (scrollView, textView, coordinator) = makeReader()
@@ -157,6 +171,37 @@ final class ContinuousTextViewTests: XCTestCase {
             yAfterScroll,
             accuracy: 1.0
         )
+    }
+
+    @MainActor
+    func testExternalSavedAnchorMovesViewport() {
+        let text = String(repeating: "恢复位置正文。\n", count: 20_000)
+        let total = (text as NSString).length
+        let bookID = UUID()
+        let (scrollView, _, coordinator) = makeReader()
+        let window = host(scrollView)
+        _ = window
+
+        coordinator.update(
+            bookID: bookID,
+            text: text,
+            anchor: .init(utf16Offset: 0),
+            style: .default,
+            textColor: .textColor
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.04))
+        let startY = scrollView.contentView.bounds.minY
+
+        coordinator.update(
+            bookID: bookID,
+            text: text,
+            anchor: .init(utf16Offset: total / 2),
+            style: .default,
+            textColor: .textColor
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.06))
+
+        XCTAssertGreaterThan(scrollView.contentView.bounds.minY, startY)
     }
 
     private func scrollEvent(deltaY: Int32) throws -> NSEvent {
