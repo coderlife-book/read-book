@@ -73,6 +73,7 @@ struct ContinuousTextView: NSViewRepresentable {
         private var currentStyle: ReaderTextStyle?
         private var currentColor: NSColor?
         private var observer: NSObjectProtocol?
+        private var reportWorkItem: DispatchWorkItem?
         private var lastReportedOffset: Int?
         private var lastAppliedAnchor: Int?
         private var isApplyingProgrammaticChange = false
@@ -90,12 +91,14 @@ struct ContinuousTextView: NSViewRepresentable {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor in
-                    self?.reportTopVisiblePosition()
+                    self?.schedulePositionReport()
                 }
             }
         }
 
         func detach() {
+            reportWorkItem?.cancel()
+            reportWorkItem = nil
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
         }
@@ -131,6 +134,7 @@ struct ContinuousTextView: NSViewRepresentable {
 
         private func clearText() {
             guard let textView else { return }
+            cancelPendingPositionReport()
             isApplyingProgrammaticChange = true
             textView.string = ""
             lastReportedOffset = nil
@@ -154,6 +158,7 @@ struct ContinuousTextView: NSViewRepresentable {
                 range: NSRange(location: 0, length: attributed.length)
             )
 
+            cancelPendingPositionReport()
             isApplyingProgrammaticChange = true
             textView.textStorage?.setAttributedString(attributed)
             textView.textContainerInset = NSSize(
@@ -170,6 +175,7 @@ struct ContinuousTextView: NSViewRepresentable {
             guard globalOffset != lastReportedOffset,
                   globalOffset != lastAppliedAnchor else { return }
 
+            cancelPendingPositionReport()
             isApplyingProgrammaticChange = true
             scrollTo(globalOffset: globalOffset)
             isApplyingProgrammaticChange = false
@@ -198,6 +204,28 @@ struct ContinuousTextView: NSViewRepresentable {
             scrollView.contentView.scroll(to: NSPoint(x: 0, y: targetY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
             lastAppliedAnchor = character
+        }
+
+        private func schedulePositionReport() {
+            reportWorkItem?.cancel()
+
+            let workItem = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.reportWorkItem = nil
+                    self.reportTopVisiblePosition()
+                }
+            }
+            reportWorkItem = workItem
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + 0.06,
+                execute: workItem
+            )
+        }
+
+        private func cancelPendingPositionReport() {
+            reportWorkItem?.cancel()
+            reportWorkItem = nil
         }
 
         private func reportTopVisiblePosition() {
