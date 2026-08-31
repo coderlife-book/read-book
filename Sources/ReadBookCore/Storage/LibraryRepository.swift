@@ -125,19 +125,14 @@ public actor LibraryRepository {
     }
 
     private func loadIndex() throws -> LibraryIndex {
-        if !FileManager.default.fileExists(atPath: paths.libraryIndexURL.path) {
-            let empty = LibraryIndex()
-            try json.write(empty, to: paths.libraryIndexURL)
-            return empty
+        if FileManager.default.fileExists(atPath: paths.libraryIndexURL.path),
+           let valid = try? json.read(LibraryIndex.self, from: paths.libraryIndexURL) {
+            return valid
         }
 
-        do {
-            return try json.read(LibraryIndex.self, from: paths.libraryIndexURL)
-        } catch {
-            let recovered = recoverIndex()
-            try json.write(recovered, to: paths.libraryIndexURL)
-            return recovered
-        }
+        let recovered = recoverIndex()
+        try json.write(recovered, to: paths.libraryIndexURL)
+        return recovered
     }
 
     private func recoverIndex() -> LibraryIndex {
@@ -150,8 +145,16 @@ public actor LibraryRepository {
         let entries = directories.compactMap { directory -> (UUID, Date)? in
             guard let id = UUID(uuidString: directory.lastPathComponent),
                   FileManager.default.fileExists(atPath: paths.contentURL(id).path) else { return nil }
-            let date = (try? paths.contentURL(id).resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-            return (id, date)
+
+            if let metadata = try? json.read(BookMetadata.self, from: paths.metadataURL(id)) {
+                return (id, metadata.lastReadAt)
+            }
+
+            if let recovered = try? recoverMetadata(id) {
+                return (id, recovered.lastReadAt)
+            }
+
+            return nil
         }
         .sorted { $0.1 > $1.1 }
 
