@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 安全热修复。\n\n- 完全停用全局键盘快捷键监听\n- 停用 Option 全局修饰键监听\n- 暂时停用系统级鼠标移动监听\n- 老板模式改为通过菜单栏显示/隐藏和切换交互\n- 保留纯净阅读、无边框、透明模式和应用内更新\n\n说明：这是 v0.1.3 整机输入卡顿问题后的保守安全版本。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 稳定性修复。\n\n- 移除自定义 NSWindow.performDrag(with:) 鼠标 tracking loop，拖动区改用 AppKit 原生 mouseDownCanMoveWindow\n- 置顶、字体、主题等无关偏好变化不再让状态机重新 show/activate 阅读器窗口\n- 打开目录时默认滚动并定位到当前章节\n- 顶部 title 与底部章节信息的边缘 hover 延迟由 250ms 降到 90ms\n- 继续保持 v0.1.4 的安全策略：不注册全局键盘、Option 或系统级鼠标监听\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
