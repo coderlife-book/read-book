@@ -65,6 +65,7 @@ struct ContinuousTextView: NSViewRepresentable {
             )
             context.coordinator.lastStyle = style
             context.coordinator.lastColor = textColor
+            context.coordinator.lastReportedOffset = nil
             context.coordinator.lastAppliedAnchor = nil
             textView.layoutManager?.ensureLayout(for: textView.textContainer!)
             context.coordinator.isApplyingProgrammaticChange = false
@@ -82,6 +83,7 @@ struct ContinuousTextView: NSViewRepresentable {
         var onPositionChanged: (BookPosition) -> Void
         weak var scrollView: NSScrollView?
         weak var textView: NSTextView?
+        var lastReportedOffset: Int?
         var lastAppliedAnchor: Int?
         var lastStyle: ReaderTextStyle?
         var lastColor: NSColor?
@@ -112,7 +114,8 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         func apply(anchor: BookPosition) {
-            guard anchor.utf16Offset != lastAppliedAnchor,
+            guard anchor.utf16Offset != lastReportedOffset,
+                  anchor.utf16Offset != lastAppliedAnchor,
                   let scrollView,
                   let textView,
                   let layoutManager = textView.layoutManager,
@@ -147,8 +150,15 @@ struct ContinuousTextView: NSViewRepresentable {
             )
             let glyph = layoutManager.glyphIndex(for: point, in: textContainer)
             let character = layoutManager.characterIndexForGlyph(at: glyph)
-            guard character != lastAppliedAnchor else { return }
-            lastAppliedAnchor = character
+
+            // A bounds notification can trail a programmatic jump. Ignore that
+            // exact location once; as soon as the user moves elsewhere, clear
+            // the applied marker so scrolling back to it is reportable later.
+            if character == lastAppliedAnchor { return }
+            lastAppliedAnchor = nil
+
+            guard character != lastReportedOffset else { return }
+            lastReportedOffset = character
             onPositionChanged(BookPosition(utf16Offset: character))
         }
 
