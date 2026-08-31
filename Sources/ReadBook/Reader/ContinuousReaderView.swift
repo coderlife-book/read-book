@@ -3,6 +3,7 @@ import ReadBookCore
 import SwiftUI
 
 struct ContinuousReaderView: View {
+    let bookID: UUID
     let text: String
     let anchor: BookPosition
     let style: ReaderTextStyle
@@ -11,6 +12,7 @@ struct ContinuousReaderView: View {
 
     var body: some View {
         ContinuousTextView(
+            bookID: bookID,
             text: text,
             anchor: anchor,
             style: style,
