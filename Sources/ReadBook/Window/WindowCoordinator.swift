@@ -6,12 +6,11 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         window.delegate = self
         window.minSize = NSSize(width: 280, height: 180)
 
-        // This is a widget-style reader, not a titled document window. Keeping
-        // `.titled` reserves a native titlebar/safe-area strip on macOS 26 even
-        // when the traffic-light buttons and title text are hidden.
+        // Widget-style, borderless reader. Dragging is handled by an explicit
+        // AppKit drag region so NSTextView/SwiftUI controls cannot steal it.
         window.styleMask.remove(.titled)
         window.styleMask.insert([.resizable, .closable])
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.backgroundColor = .clear
         window.isOpaque = false
