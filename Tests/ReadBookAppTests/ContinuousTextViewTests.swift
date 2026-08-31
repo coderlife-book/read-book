@@ -31,7 +31,7 @@ final class ContinuousTextViewTests: XCTestCase {
     }
 
     @MainActor
-    func testScrollPositionReportingWaitsForShortIdlePeriod() {
+    func testRapidScrollPositionChangesAreReportedOnlyAfterIdle() {
         let text = String(repeating: "滚动位置正文。\n", count: 20_000)
         var reports: [BookPosition] = []
         let (scrollView, _, coordinator) = makeReader {
@@ -48,15 +48,23 @@ final class ContinuousTextViewTests: XCTestCase {
             textColor: .textColor
         )
 
-        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 300))
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-        NotificationCenter.default.post(
-            name: NSView.boundsDidChangeNotification,
-            object: scrollView.contentView
-        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        reports.removeAll()
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
-        XCTAssertTrue(reports.isEmpty)
+        for y in [120.0, 240.0, 360.0] {
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            NotificationCenter.default.post(
+                name: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView
+            )
+
+            RunLoop.main.run(until: Date().addingTimeInterval(0.025))
+            XCTAssertTrue(
+                reports.isEmpty,
+                "Position should not be written back while scrolling is still active"
+            )
+        }
 
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
         XCTAssertEqual(reports.count, 1)
