@@ -1,7 +1,17 @@
 import AppKit
 
 @MainActor
-final class ReaderGlobalInputService {
+protocol ReaderGlobalInputServicing: AnyObject {
+    @discardableResult
+    func start(
+        onPointer: @escaping @MainActor (CGPoint) -> Void,
+        onOption: @escaping @MainActor (Bool) -> Void
+    ) -> Bool
+    func stop()
+}
+
+@MainActor
+final class ReaderGlobalInputService: ReaderGlobalInputServicing {
     private var globalPointerMonitor: Any?
     private var localPointerMonitor: Any?
     private var globalFlagsMonitor: Any?
