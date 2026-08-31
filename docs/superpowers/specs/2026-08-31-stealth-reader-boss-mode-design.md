@@ -40,6 +40,7 @@ The core product principle is:
 - Cloud synchronization.
 - Changes to TXT import/storage semantics.
 - Replacing the existing paginated or virtualized-continuous text engines.
+- User-configurable global hotkeys in this release; V1.3 ships one fixed default hotkey.
 
 ## 3. Architecture
 
@@ -114,7 +115,7 @@ Boss Mode on + Floating Reading:
 - Text remains visible.
 - Pointer is pass-through by default.
 - Holding Option while inside the stored reader frame transitions to `interactiveStealth`.
-- Releasing Option returns to `floatingText` after a short debounce.
+- Releasing Option returns to `floatingText` after 300 ms.
 - Pointer exiting does not hide the text in this profile.
 
 ### 4.3 Concealed profile
@@ -129,16 +130,15 @@ Boss Mode on + Concealed:
 
 ### 4.4 Emergency global shortcut
 
-Default shortcut: `Control + Option + R` (`⌃⌥R`).
+V1.3 fixed shortcut: `Control + Option + R` (`⌃⌥R`).
 
 - Shortcut works even when ReadBook is not frontmost.
 - From any visible state: immediately hide as `hidden(.explicitShortcut)`.
-- No 300 ms delay or animation that materially slows concealment.
+- No 300 ms delay and no concealment animation.
 - Pointer movement into the old frame does not restore an explicitly hidden window.
 - Pressing the shortcut again restores the last visible state.
 - Menu-bar "Show Reader" also clears lock-hidden state and restores the reader.
-
-The shortcut must be configurable later without changing the state-machine design, but V1.3 can ship with one default global shortcut.
+- Shortcut customization is explicitly deferred to a later release.
 
 ## 5. Pointer pass-through and temporary interaction
 
@@ -154,12 +154,13 @@ Temporary interaction:
 - Global/local modifier monitoring watches Option.
 - When Option is held and the pointer is inside the stored reader frame, enter `interactiveStealth` and set `ignoresMouseEvents = false`.
 - The reader can then scroll, paginate, open controls, and drag.
-- Releasing Option waits about 300 ms before returning to pointer pass-through, preventing flicker while the user moves between reader controls.
+- Releasing Option waits 300 ms before returning to pointer pass-through, preventing flicker while the user moves between reader controls.
 
 Persistent override:
 
 - Menu bar exposes `Lock as Interactive`.
 - When enabled, Boss Mode does not return to pass-through until unlocked.
+- This lock is session-only and resets to off at the next app launch.
 
 ## 6. Pure reading hover behavior
 
@@ -171,28 +172,28 @@ Pointer movement, wheel scrolling, trackpad scrolling, page navigation, text sel
 
 ### 6.2 Top control hot zone
 
-- Top hot zone height: approximately 20 pt.
-- Pointer must remain in the zone for approximately 250 ms before revealing the toolbar.
-- Toolbar appears over an opaque-enough theme-matched scrim.
-- The scrim fully separates controls from body text so title/buttons never visually stack on text.
+- Top hot zone height: 20 pt.
+- Pointer must remain in the zone for 250 ms before revealing the toolbar.
+- Toolbar appears over a theme-matched scrim with enough opacity to fully separate controls from body text.
+- The scrim prevents title/buttons from visually stacking on body text.
 - Toolbar non-button area is the primary window drag surface.
 
 ### 6.3 Bottom status hot zone
 
-- Bottom hot zone height: approximately 16 pt.
-- Pointer dwell of approximately 250 ms reveals chapter title and reading progress.
+- Bottom hot zone height: 16 pt.
+- Pointer must remain in the zone for 250 ms before revealing chapter title and reading progress.
 - Footer receives its own theme-matched scrim.
 - Footer text never renders directly over body text without background separation.
 
 ### 6.4 Auto-dismiss
 
-- Leaving a control hot zone and returning to the body starts a ~200 ms fade-out timer.
+- Leaving a control hot zone and returning to the body starts a 200 ms fade-out timer.
 - Entering a popover/menu originating from the control region keeps that region visible while the control is active.
 - Scrolling must never reset or trigger the reveal timer.
 
 ### 6.5 Option interaction
 
-Holding Option in a stealth profile may reveal the full control layer immediately because this is an explicit interaction intent.
+Holding Option in a stealth profile reveals the full control layer immediately because this is an explicit interaction intent.
 
 ## 7. Window dragging
 
@@ -212,7 +213,7 @@ Rules:
 ### 8.1 Card
 
 - Existing rounded reading card.
-- Theme background visible.
+- Theme background visible at 100% opacity.
 - Window shadow visible.
 - Suitable for normal reading.
 
@@ -220,19 +221,20 @@ Rules:
 
 - No obvious outer card/chrome.
 - No titlebar.
-- Shadow disabled or substantially reduced.
-- Background alpha is configurable but defaults to a low-opacity theme surface rather than full transparency.
+- Window shadow disabled.
+- Default theme-surface background opacity: 18%.
+- Background opacity is user-adjustable from 0% to 60% in Settings.
 - Reader remains fully legible over ordinary desktop backgrounds.
 
 ### 8.3 Transparent
 
-- Main background alpha = 0.
-- Shadow off.
+- Main background alpha = 0%.
+- Window shadow disabled.
 - Only text remains when controls are not explicitly revealed.
 - Toolbar/footer scrims are permitted while controls are explicitly active so the controls stay readable.
 - Pointer pass-through defaults on in Floating Reading.
 
-Text opacity remains independent from background opacity. The first implementation should not add arbitrary text translucency unless needed after real-device testing; readable text is more important than exposing another setting.
+Text opacity remains independent from background opacity. V1.3 does not expose arbitrary text-opacity control; readable text is more important than another visual setting.
 
 ## 9. Preferences and menu-bar controls
 
@@ -243,9 +245,15 @@ Persistent settings:
 - Boss Mode enabled.
 - Boss Mode profile: Floating Reading / Concealed.
 - Appearance: Card / Frameless / Transparent.
-- Background opacity for Frameless.
-- Global shortcut identifier/configuration placeholder (default `⌃⌥R`).
-- Lock interactive preference should be session/transient by default, not persisted across app launches, to avoid surprising pass-through behavior.
+- Frameless background opacity, default 18%, range 0%...60%.
+- Global shortcut is not persisted/configurable in V1.3; it is fixed to `⌃⌥R`.
+
+Transient settings/state:
+
+- Lock Interactive, default off and not persisted across launches.
+- Current `ReaderWindowState`.
+- Last visible stealth state.
+- Current hide reason.
 
 Menu-bar entries:
 
@@ -283,8 +291,8 @@ For any custom vector controls that are not better served by SF Symbols, prefer 
 
 Primary candidate: **Tabler Icons**.
 
-- 24×24 grid, consistent 2 px stroke.
-- Thousands of SVG icons.
+- 24×24 grid and consistent 2 px stroke.
+- 6,000+ SVG icons.
 - MIT licensed and explicitly supports personal/commercial use.
 - Suitable candidates include book/library, eye/eye-off, ghost/stealth, pin, layout, and settings metaphors.
 
@@ -296,7 +304,7 @@ Secondary candidate: **Lucide**.
 
 Heroicons is acceptable as a reference set but should not be mixed into the shipped control set unless a specific icon is clearly superior.
 
-Licensing files/notices for any bundled third-party SVGs must be retained in the repository/distribution as required by their licenses.
+Licensing files/notices for bundled third-party SVGs must be retained in the repository/distribution as required by their licenses.
 
 ### 10.3 Native symbols
 
@@ -361,11 +369,11 @@ Emergency shortcut path:
 
 ## 13. Error handling and safety fallbacks
 
-- If global shortcut registration fails, Boss Mode remains usable through the menu bar and settings should report that the shortcut is unavailable rather than silently pretending it works.
-- If a global event monitor cannot be installed, concealed auto-return falls back to menu-bar/global-shortcut restoration; no polling loop should be introduced.
-- Window frame detection must use global screen coordinates consistently across multiple displays.
-- Stored frame should be clamped/revalidated if a display is disconnected.
-- Any unexpected state/controller failure must prefer leaving a visible, interactive reader rather than trapping the user in an invisible unclickable overlay.
+- If global shortcut registration fails, Boss Mode remains usable through the menu bar and Settings reports that `⌃⌥R` is unavailable rather than silently pretending it works.
+- If a global event monitor cannot be installed, concealed auto-return falls back to menu-bar/global-shortcut restoration; no polling loop is introduced.
+- Window frame detection uses global screen coordinates consistently across multiple displays.
+- Stored frame is clamped/revalidated if a display is disconnected.
+- Any unexpected state/controller failure prefers leaving a visible, interactive reader rather than trapping the user in an invisible unclickable overlay.
 - Explicit Quit always unregisters global monitors/hotkeys.
 
 ## 14. Testing
@@ -386,7 +394,7 @@ Cover at minimum:
 ### Window/AppKit tests
 
 - Transparent mode sets background/shadow/mouse-event behavior as specified.
-- Frameless mode remains resizable.
+- Frameless mode remains resizable and has no shadow.
 - Title/empty toolbar drag invokes approved drag path while buttons remain clickable.
 - Window show/hide does not reset frame or reading position.
 
@@ -394,15 +402,15 @@ Cover at minimum:
 
 - Body hover does not show controls.
 - Scroll events do not show controls.
-- Top dwell reveals only top chrome.
-- Bottom dwell reveals only bottom chrome.
+- 250 ms top dwell reveals only top chrome.
+- 250 ms bottom dwell reveals only bottom chrome.
 - Controls have scrim/background separation from body content.
-- Returning to body dismisses controls after debounce.
+- Returning to body dismisses controls after 200 ms.
 
 ### Performance/regression
 
 - Existing 33+ tests remain green.
-- Existing virtualized continuous renderer must remain bounded.
+- Existing virtualized continuous renderer remains bounded.
 - Global mouse/modifier monitoring must not cause high idle CPU usage.
 - No timer/event-monitor retain cycles.
 
@@ -411,16 +419,17 @@ Cover at minimum:
 - Work with VS Code/Chrome behind a fully transparent reader.
 - Verify click/scroll pass-through.
 - Hold Option and immediately interact with reader.
-- Move pointer out in Concealed profile; window disappears around 300 ms later.
+- Move pointer out in Concealed profile; window disappears 300 ms later unless the pointer re-enters first.
 - Move pointer back to the old frame; automatically hidden reader returns.
 - Hit `⌃⌥R`; reader disappears immediately and stays hidden even with pointer in its old frame.
 - Hit shortcut again; reader returns.
 - Scroll the novel for several minutes without toolbar/footer appearing accidentally.
 - Move pointer intentionally into top/bottom hot zones and verify controls remain readable without body-text overlap.
+- Verify Frameless default background is 18% opacity and Transparent is 0%.
 
 ## 15. Release strategy
 
-Implement on a feature branch and publish as the next patch/minor release only after:
+Implement on a feature branch and publish as the next release only after:
 
 1. Full macOS CI is green.
 2. App bundle strict codesign verification is green.
