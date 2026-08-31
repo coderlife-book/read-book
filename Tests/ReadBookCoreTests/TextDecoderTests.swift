@@ -22,6 +22,17 @@ final class TextDecoderTests: XCTestCase {
         XCTAssertEqual(result.encoding, .gb18030)
     }
 
+    func testBig5DoesNotGetMisclassifiedAsGB18030() throws {
+        let encoding = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.big5.rawValue)
+        ))
+        let source = "第一章 羅蘭與夜鶯\n第二章 邊境小鎮"
+        let data = try XCTUnwrap(source.data(using: encoding))
+        let result = try TextDecoder().decode(data)
+        XCTAssertEqual(result.text, source)
+        XCTAssertEqual(result.encoding, .big5)
+    }
+
     func testUTF16BOMIsDetected() throws {
         let source = "第一章\n正文"
         var data = Data([0xFF, 0xFE])
