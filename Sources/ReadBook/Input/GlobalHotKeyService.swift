@@ -2,7 +2,14 @@ import Carbon.HIToolbox
 import Foundation
 
 @MainActor
-final class GlobalHotKeyService {
+protocol GlobalHotKeyServicing: AnyObject {
+    @discardableResult
+    func start(onPress: @escaping @MainActor () -> Void) -> Bool
+    func stop()
+}
+
+@MainActor
+final class GlobalHotKeyService: GlobalHotKeyServicing {
     private static let signature: OSType = 0x5244424B // RDBK
     private static let identifier: UInt32 = 1
 
