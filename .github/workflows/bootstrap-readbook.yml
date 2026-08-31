@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG：纯净阅读与老板模式。\n\n- 正文 hover / 滚动不再唤出标题栏和章节栏，控制区改为顶部/底部热区并带独立背景\n- 标题区域支持真正的无边框窗口拖动\n- 新增老板模式：悬浮阅读、隐蔽自动隐藏、⌃⌥R 全局紧急隐藏/恢复\n- 新增纯透明、无边框、Option 临时交互与鼠标穿透\n- 新增自有 ReadBook App Icon / 菜单栏标识\n- 新增应用内检查更新、下载、SHA-256 校验和自动替换重启；从此版本之后无需每次手动下载\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 安全热修复。\n\n- 完全停用全局键盘快捷键监听\n- 停用 Option 全局修饰键监听\n- 暂时停用系统级鼠标移动监听\n- 老板模式改为通过菜单栏显示/隐藏和切换交互\n- 保留纯净阅读、无边框、透明模式和应用内更新\n\n说明：这是 v0.1.3 整机输入卡顿问题后的保守安全版本。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
