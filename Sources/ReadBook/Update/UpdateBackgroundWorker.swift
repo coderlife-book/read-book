@@ -1,4 +1,5 @@
 import Darwin
+import Dispatch
 import Foundation
 
 struct UpdateProcessResult: Sendable, Equatable {
@@ -43,31 +44,24 @@ struct UpdateBackgroundWorker: Sendable, UpdateCommandRunning {
             }
 
             let process = Process()
+            let terminated = DispatchSemaphore(value: 0)
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
             process.standardOutput = FileHandle.nullDevice
             process.standardError = stderrHandle
+            process.terminationHandler = { _ in terminated.signal() }
             try process.run()
 
-            let deadline = Date().addingTimeInterval(timeoutSeconds)
-            while process.isRunning && Date() < deadline {
-                Thread.sleep(forTimeInterval: 0.02)
-            }
-
-            guard !process.isRunning else {
+            let deadline = DispatchTime.now() + timeoutSeconds
+            guard terminated.wait(timeout: deadline) == .success else {
                 process.terminate()
-                let graceDeadline = Date().addingTimeInterval(0.20)
-                while process.isRunning && Date() < graceDeadline {
-                    Thread.sleep(forTimeInterval: 0.01)
-                }
-                if process.isRunning {
+                if terminated.wait(timeout: .now() + 0.20) == .timedOut {
                     _ = Darwin.kill(process.processIdentifier, SIGKILL)
+                    _ = terminated.wait(timeout: .now() + 1.0)
                 }
-                process.waitUntilExit()
                 throw UpdateBackgroundWorkerError.timedOut(executable)
             }
 
-            process.waitUntilExit()
             try stderrHandle.synchronize()
             try stderrHandle.close()
             let data = try Data(contentsOf: stderrURL)
