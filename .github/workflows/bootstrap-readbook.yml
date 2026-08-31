@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 稳定性硬化版本。\n\n- 应用退出不再等待异步阅读进度保存，避免 ReadBook 拖住 macOS 注销、重启或关机\n- 分页触控板翻页移除最后一个 NSEvent 本地 monitor，滚轮事件仅由阅读视图自己处理\n- 窗口置顶、鼠标穿透、阴影与 App activation policy 改为幂等更新，减少无意义的 AppKit 重入\n- 更新包 SHA-256、ditto 解压与 codesign 校验移出 MainActor，不再阻塞阅读器 UI\n- 更新子进程增加 60 秒硬超时；替换 helper 等旧进程退出增加 30 秒硬超时，消除无限等待路径\n- v0.1.6 首次启动一次性切到普通 App 模式，使 ReadBook 出现在 Dock/强制退出应用中；之后仍可手动切回隐藏 Dock\n- 保持无全局键盘、Option、系统级鼠标监听，以及原生 mouseDownCanMoveWindow 拖动策略\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 阅读交互优化版本。\n\n- 顶栏图标按钮扩大为更易点击的热区，hover 时提供浅灰圆形反馈\n- title 区域可直接拖动阅读器窗口，减少对精确命中位置的依赖\n- 窗口四边与四角新增明确的缩放命中区域和对应 resize 光标，可直接调整宽高\n- 设置中新增正文颜色选择，并支持一键恢复为跟随主题；分页与连续滚动模式同步生效\n- 兼容旧版偏好配置，未设置自定义颜色时保持原主题行为\n- 继续包含 v0.1.6 的无卡死稳定性保护，不重新引入全局键盘、Option 或系统级鼠标监听\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
