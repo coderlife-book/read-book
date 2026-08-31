@@ -2,7 +2,7 @@ name: macOS CI
 
 on:
   push:
-    branches: ["main", "feature/readbook-v1"]
+    branches: ["main", "feature/readbook-v1", "fix/release-codesign"]
   pull_request:
     branches: ["main"]
 
@@ -29,6 +29,11 @@ jobs:
 
       - name: Package local app bundle
         run: Scripts/build-app.sh
+
+      - name: Verify packaged app signature
+        run: |
+          codesign -dv --verbose=4 dist/ReadBook.app
+          codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 
       - name: Create release archive
         if: github.ref == 'refs/heads/main'
