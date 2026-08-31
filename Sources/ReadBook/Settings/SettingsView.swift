@@ -134,10 +134,29 @@ struct SettingsView: View {
                     Text("普通 App（显示 Dock）").tag(AppPresenceMode.normal)
                 }
             }
+
+            Section("更新") {
+                LabeledContent("当前版本") {
+                    Text(currentVersion)
+                        .monospacedDigit()
+                }
+                Button("检查更新…") {
+                    runtime.showReader()
+                    Task { await runtime.updater.check(manual: true) }
+                }
+                Text("ReadBook 会在启动后自动检查一次新版本；发现更新后由你确认才会下载和安装。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding(16)
-        .frame(width: 470, height: 560)
+        .frame(width: 470, height: 640)
+    }
+
+    private var currentVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版"
+        return "v\(version)"
     }
 
     private func binding<T>(_ keyPath: WritableKeyPath<ReaderPreferences, T>) -> Binding<T> {
