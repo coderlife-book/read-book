@@ -39,6 +39,24 @@ final class LibraryRepositoryTests: XCTestCase {
         XCTAssertEqual(library.first?.position.utf16Offset, 5)
     }
 
+    func testMissingLibraryIndexIsRecoveredFromManagedBooks() async throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let repo = LibraryRepository(paths: fixture.paths)
+        let book = try await repo.importBook(from: fixture.source)
+        try await repo.savePosition(bookID: book.id, position: BookPosition(utf16Offset: 6))
+        try FileManager.default.removeItem(at: fixture.paths.libraryIndexURL)
+
+        let reopened = LibraryRepository(paths: fixture.paths)
+        let recoveredLibrary = try await reopened.loadLibrary()
+        XCTAssertEqual(recoveredLibrary.map(\.id), [book.id])
+        XCTAssertEqual(recoveredLibrary.first?.position.utf16Offset, 6)
+
+        let recoveredData = try Data(contentsOf: fixture.paths.libraryIndexURL)
+        let recovered = try JSONDecoder().decode(LibraryIndex.self, from: recoveredData)
+        XCTAssertEqual(recovered.bookIDs, [book.id])
+    }
+
     func testCorruptLibraryIndexIsRecoveredAndRewritten() async throws {
         let fixture = try makeFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
