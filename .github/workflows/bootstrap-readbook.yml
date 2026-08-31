@@ -1,0 +1,63 @@
+name: Bootstrap ReadBook source
+
+on:
+  push:
+    branches: ["feature/readbook-v1"]
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-test-and-commit:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify and expand staged source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import hashlib
+
+          source = Path('.ci/readbook-source.tar.gz.b64')
+          encoded = source.read_bytes()
+          archive = base64.b64decode(encoded)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = '984209f4a9f616a5c5db5289fe98463b4400c87b37201952989ca62d71e866f0'
+          if digest != expected:
+              raise SystemExit(f'archive checksum mismatch: {digest} != {expected}')
+          Path('/tmp/readbook-source.tar.gz').write_bytes(archive)
+          PY
+          tar -xzf /tmp/readbook-source.tar.gz
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build ReadBook
+        run: swift build
+
+      - name: Package local app bundle
+        run: Scripts/build-app.sh
+
+      - name: Commit verified source to feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git commit -m "feat: implement ReadBook macOS reader"
+          git push origin HEAD:feature/readbook-v1
