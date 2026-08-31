@@ -9,8 +9,8 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-APP_VERSION="${READBOOK_VERSION:-0.1.3}"
-APP_BUILD="${READBOOK_BUILD:-4}"
+APP_VERSION="${READBOOK_VERSION:-0.1.4}"
+APP_BUILD="${READBOOK_BUILD:-5}"
 
 swift build -c release
 
