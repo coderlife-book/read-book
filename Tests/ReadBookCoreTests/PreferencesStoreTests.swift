@@ -22,6 +22,33 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(try PreferencesStore(defaults: defaults).load(), .defaults)
     }
 
+    func testStealthDefaultsAreSafeForExistingUsers() {
+        let value = ReaderPreferences.defaults
+        XCTAssertFalse(value.bossModeEnabled)
+        XCTAssertEqual(value.bossModeProfile, .floatingReading)
+        XCTAssertEqual(value.windowAppearance, .card)
+        XCTAssertEqual(value.framelessBackgroundOpacity, 0.18, accuracy: 0.0001)
+    }
+
+    func testLegacyV012PreferencesDecodeWithStealthDefaults() throws {
+        let json = #"{"readingMode":"paginated","fontFamily":"PingFang SC","fontSize":17,"lineSpacing":8,"paragraphSpacing":9,"theme":"soft","alwaysOnTop":false,"appPresenceMode":"widgetStyle"}"#
+        let value = try JSONDecoder().decode(ReaderPreferences.self, from: Data(json.utf8))
+        XCTAssertFalse(value.bossModeEnabled)
+        XCTAssertEqual(value.bossModeProfile, .floatingReading)
+        XCTAssertEqual(value.windowAppearance, .card)
+        XCTAssertEqual(value.framelessBackgroundOpacity, 0.18, accuracy: 0.0001)
+    }
+
+    func testStealthPreferencesRoundTrip() throws {
+        var value = ReaderPreferences.defaults
+        value.bossModeEnabled = true
+        value.bossModeProfile = .concealed
+        value.windowAppearance = .frameless
+        value.framelessBackgroundOpacity = 0.42
+        let decoded = try JSONDecoder().decode(ReaderPreferences.self, from: JSONEncoder().encode(value))
+        XCTAssertEqual(decoded, value)
+    }
+
     func testLayoutSignatureChangesForPaginationAffectingSettings() {
         let a = LayoutSignature(width: 316, height: 220, style: .default)
         var changed = ReaderTextStyle.default
