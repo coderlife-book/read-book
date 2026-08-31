@@ -3,7 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var model: AppModel
-    let windowRegistry: WindowRegistry
+    let runtime: AppRuntime
 
     private let fonts = ["PingFang SC", "Songti SC", "STKaiti", "System"]
 
@@ -40,6 +40,78 @@ struct SettingsView: View {
                     Text("深色").tag(ReaderTheme.dark)
                 }
                 .pickerStyle(.segmented)
+
+                Picker("窗口外观", selection: Binding(
+                    get: { model.preferences.windowAppearance },
+                    set: { value in
+                        model.updatePreferences { $0.windowAppearance = value }
+                        runtime.applyPreferences(model.preferences)
+                    }
+                )) {
+                    Text("卡片").tag(ReaderWindowAppearance.card)
+                    Text("无边框").tag(ReaderWindowAppearance.frameless)
+                    Text("纯透明").tag(ReaderWindowAppearance.transparent)
+                }
+                .pickerStyle(.segmented)
+
+                if model.preferences.windowAppearance == .frameless {
+                    LabeledContent("底色") {
+                        HStack {
+                            Slider(value: Binding(
+                                get: { model.preferences.framelessBackgroundOpacity },
+                                set: { value in
+                                    model.updatePreferences { $0.framelessBackgroundOpacity = value }
+                                }
+                            ), in: 0...0.60, step: 0.01)
+                            Text("\(Int(model.preferences.framelessBackgroundOpacity * 100))%")
+                                .monospacedDigit()
+                                .frame(width: 38, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+
+            Section("老板模式") {
+                Toggle("启用老板模式", isOn: Binding(
+                    get: { model.preferences.bossModeEnabled },
+                    set: { value in
+                        model.updatePreferences { preferences in
+                            preferences.bossModeEnabled = value
+                            if value, preferences.windowAppearance == .card {
+                                preferences.windowAppearance = .transparent
+                            }
+                        }
+                        runtime.applyPreferences(model.preferences)
+                    }
+                ))
+
+                Picker("行为", selection: Binding(
+                    get: { model.preferences.bossModeProfile },
+                    set: { value in runtime.setBossProfile(value, using: model) }
+                )) {
+                    Text("悬浮阅读").tag(BossModeProfile.floatingReading)
+                    Text("隐蔽（移出隐藏）").tag(BossModeProfile.concealed)
+                }
+
+                Toggle("锁定为可交互（本次运行）", isOn: Binding(
+                    get: { runtime.windowState.lockInteractive },
+                    set: { runtime.setLockInteractive($0) }
+                ))
+
+                LabeledContent("紧急隐藏") {
+                    Text("⌃⌥R")
+                        .monospaced()
+                }
+
+                Text("透明悬浮时鼠标默认穿透到后面的工作软件；按住 Option 可临时操作阅读器。正文区域悬停和滚动不会再唤出标题栏或章节栏。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if !runtime.hotKeyAvailable {
+                    Text("当前全局快捷键未注册成功，仍可通过菜单栏显示/隐藏阅读器。")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Section("窗口") {
@@ -47,7 +119,7 @@ struct SettingsView: View {
                     get: { model.preferences.alwaysOnTop },
                     set: { value in
                         model.updatePreferences { $0.alwaysOnTop = value }
-                        windowRegistry.setAlwaysOnTop(value)
+                        runtime.applyPreferences(model.preferences)
                     }
                 ))
 
@@ -55,7 +127,7 @@ struct SettingsView: View {
                     get: { model.preferences.appPresenceMode },
                     set: { value in
                         model.updatePreferences { $0.appPresenceMode = value }
-                        windowRegistry.setAppPresence(value)
+                        runtime.applyPreferences(model.preferences)
                     }
                 )) {
                     Text("小组件模式（隐藏 Dock）").tag(AppPresenceMode.widgetStyle)
@@ -65,7 +137,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(16)
-        .frame(width: 440, height: 330)
+        .frame(width: 470, height: 560)
     }
 
     private func binding<T>(_ keyPath: WritableKeyPath<ReaderPreferences, T>) -> Binding<T> {
