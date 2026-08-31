@@ -15,26 +15,10 @@ struct ContinuousTextView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView(frame: .zero)
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.drawsBackground = false
-        scrollView.contentView.postsBoundsChangedNotifications = true
-
-        let textView = NSTextView(frame: .zero)
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.drawsBackground = false
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.minSize = NSSize(width: 0, height: 0)
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.heightTracksTextView = false
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.layoutManager?.allowsNonContiguousLayout = true
-        scrollView.documentView = textView
+        let scrollView = Self.makeNativeScrollView()
+        guard let textView = scrollView.documentView as? NSTextView else {
+            preconditionFailure("NSTextView.scrollableTextView() must provide NSTextView")
+        }
 
         context.coordinator.attach(scrollView: scrollView, textView: textView)
         return scrollView
@@ -56,22 +40,42 @@ struct ContinuousTextView: NSViewRepresentable {
     }
 
     @MainActor
+    static func makeNativeScrollView() -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        guard let textView = scrollView.documentView as? NSTextView else {
+            preconditionFailure("NSTextView.scrollableTextView() must provide NSTextView")
+        }
+
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+        scrollView.contentView.postsBoundsChangedNotifications = true
+
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.layoutManager?.allowsNonContiguousLayout = true
+
+        return scrollView
+    }
+
+    @MainActor
     final class Coordinator: NSObject {
         var onPositionChanged: (BookPosition) -> Void
         weak var scrollView: NSScrollView?
         weak var textView: NSTextView?
 
-        private let planner = VirtualTextWindowPlanner()
         private var sourceBookID: UUID?
         private var sourceText = ""
-        private var currentWindow: VirtualTextWindow?
         private var currentStyle: ReaderTextStyle?
         private var currentColor: NSColor?
         private var observer: NSObjectProtocol?
         private var lastReportedOffset: Int?
         private var lastAppliedAnchor: Int?
         private var isApplyingProgrammaticChange = false
-        private var recenterScheduled = false
 
         init(onPositionChanged: @escaping (BookPosition) -> Void) {
             self.onPositionChanged = onPositionChanged
@@ -105,6 +109,7 @@ struct ContinuousTextView: NSViewRepresentable {
         ) {
             let bookChanged = sourceBookID != bookID
             let styleChanged = currentStyle != style || currentColor != textColor
+
             sourceBookID = bookID
             sourceText = text
             currentStyle = style
@@ -116,12 +121,9 @@ struct ContinuousTextView: NSViewRepresentable {
             }
 
             let anchorOffset = min(max(anchor.utf16Offset, 0), (text as NSString).length)
-            let anchorOutsideWindow = currentWindow?.contains(globalOffset: anchorOffset) != true
 
-            if bookChanged || currentWindow == nil || anchorOutsideWindow {
-                loadWindow(centeredAt: anchorOffset, restoreGlobalOffset: anchorOffset)
-            } else if styleChanged {
-                renderCurrentWindow(restoringGlobalOffset: anchorOffset)
+            if bookChanged || styleChanged || textView?.string.isEmpty == true {
+                renderDocument(restoringGlobalOffset: anchorOffset)
             } else {
                 apply(globalOffset: anchorOffset)
             }
@@ -131,27 +133,20 @@ struct ContinuousTextView: NSViewRepresentable {
             guard let textView else { return }
             isApplyingProgrammaticChange = true
             textView.string = ""
-            currentWindow = nil
             lastReportedOffset = nil
             lastAppliedAnchor = nil
+            scrollView?.contentView.scroll(to: .zero)
             isApplyingProgrammaticChange = false
         }
 
-        private func loadWindow(centeredAt globalOffset: Int, restoreGlobalOffset: Int) {
-            guard !sourceText.isEmpty else { return }
-            currentWindow = planner.makeWindow(in: sourceText, centeredAt: globalOffset)
-            renderCurrentWindow(restoringGlobalOffset: restoreGlobalOffset)
-        }
-
-        private func renderCurrentWindow(restoringGlobalOffset globalOffset: Int) {
-            guard let window = currentWindow,
-                  let style = currentStyle,
+        private func renderDocument(restoringGlobalOffset globalOffset: Int) {
+            guard let style = currentStyle,
                   let textColor = currentColor,
                   let textView else { return }
 
             let engine = PaginationEngine()
             let attributed = NSMutableAttributedString(
-                attributedString: engine.attributedString(window.text, style: style)
+                attributedString: engine.attributedString(sourceText, style: style)
             )
             attributed.addAttribute(
                 .foregroundColor,
@@ -173,9 +168,7 @@ struct ContinuousTextView: NSViewRepresentable {
 
         private func apply(globalOffset: Int) {
             guard globalOffset != lastReportedOffset,
-                  globalOffset != lastAppliedAnchor,
-                  let window = currentWindow,
-                  window.contains(globalOffset: globalOffset) else { return }
+                  globalOffset != lastAppliedAnchor else { return }
 
             isApplyingProgrammaticChange = true
             scrollTo(globalOffset: globalOffset)
@@ -183,16 +176,14 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         private func scrollTo(globalOffset: Int) {
-            guard let window = currentWindow,
-                  let scrollView,
+            guard let scrollView,
                   let textView,
                   let layoutManager = textView.layoutManager,
                   let textContainer = textView.textContainer,
                   !textView.string.isEmpty else { return }
 
-            let localOffset = window.localOffset(forGlobalOffset: globalOffset)
             let length = (textView.string as NSString).length
-            let character = min(max(localOffset, 0), max(length - 1, 0))
+            let character = min(max(globalOffset, 0), max(length - 1, 0))
             let characterRange = NSRange(location: character, length: min(1, length - character))
             let glyphRange = layoutManager.glyphRange(
                 forCharacterRange: characterRange,
@@ -206,12 +197,11 @@ struct ContinuousTextView: NSViewRepresentable {
 
             scrollView.contentView.scroll(to: NSPoint(x: 0, y: targetY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            lastAppliedAnchor = window.globalOffset(forLocalOffset: character)
+            lastAppliedAnchor = character
         }
 
         private func reportTopVisiblePosition() {
             guard !isApplyingProgrammaticChange,
-                  let window = currentWindow,
                   let scrollView,
                   let textView,
                   let layoutManager = textView.layoutManager,
@@ -223,8 +213,8 @@ struct ContinuousTextView: NSViewRepresentable {
                 y: max(scrollView.contentView.bounds.minY - textView.textContainerOrigin.y, 0)
             )
             let glyph = layoutManager.glyphIndex(for: point, in: textContainer)
-            let localCharacter = layoutManager.characterIndexForGlyph(at: glyph)
-            let globalCharacter = window.globalOffset(forLocalOffset: localCharacter)
+            let character = layoutManager.characterIndexForGlyph(at: glyph)
+            let globalCharacter = min(max(character, 0), (sourceText as NSString).length)
 
             if globalCharacter == lastAppliedAnchor { return }
             lastAppliedAnchor = nil
@@ -232,21 +222,6 @@ struct ContinuousTextView: NSViewRepresentable {
             if globalCharacter != lastReportedOffset {
                 lastReportedOffset = globalCharacter
                 onPositionChanged(BookPosition(utf16Offset: globalCharacter))
-            }
-
-            scheduleRecenteringIfNeeded(at: globalCharacter)
-        }
-
-        private func scheduleRecenteringIfNeeded(at globalOffset: Int) {
-            guard currentWindow?.needsRecentering(globalOffset: globalOffset) == true,
-                  !recenterScheduled else { return }
-
-            recenterScheduled = true
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.recenterScheduled = false
-                guard self.currentWindow?.needsRecentering(globalOffset: globalOffset) == true else { return }
-                self.loadWindow(centeredAt: globalOffset, restoreGlobalOffset: globalOffset)
             }
         }
     }
