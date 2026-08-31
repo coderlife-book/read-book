@@ -97,9 +97,15 @@ final class UpdateInstaller {
         CURRENT=\(current)
         CANDIDATE=\(candidate)
         BACKUP=\(backup)
+        WAIT_TICKS=0
+        MAX_WAIT_TICKS=150
 
         while /bin/kill -0 "$PID" 2>/dev/null; do
+          if [ "$WAIT_TICKS" -ge "$MAX_WAIT_TICKS" ]; then
+            exit 20
+          fi
           /bin/sleep 0.2
+          WAIT_TICKS=$((WAIT_TICKS + 1))
         done
 
         /bin/rm -rf "$BACKUP"
