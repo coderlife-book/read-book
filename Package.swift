@@ -17,6 +17,7 @@ var targets: [Target] = [
 #if os(macOS)
 products.append(.executable(name: "ReadBook", targets: ["ReadBook"]))
 targets.insert(.executableTarget(name: "ReadBook", dependencies: ["ReadBookCore"]), at: 1)
+targets.append(.testTarget(name: "ReadBookAppTests", dependencies: ["ReadBook"]))
 #endif
 
 let package = Package(
