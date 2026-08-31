@@ -6,7 +6,7 @@ import ReadBookCore
 
 @MainActor
 final class AppRuntimeInputSafetyTests: XCTestCase {
-    func testStartWithBossModeOffDoesNotInstallGlobalInputHooks() {
+    func testNormalStartupDoesNotInstallAnyGlobalInputHooks() {
         let hotKey = FakeHotKeyService()
         let globalInput = FakeReaderGlobalInputService()
         let runtime = AppRuntime(
@@ -15,32 +15,15 @@ final class AppRuntimeInputSafetyTests: XCTestCase {
         )
         defer { runtime.stop() }
 
-        runtime.start(preferences: .defaults)
+        runtime.start(preferences: ReaderPreferences.defaults)
 
         XCTAssertEqual(hotKey.startCount, 0)
         XCTAssertEqual(globalInput.startCount, 0)
-    }
-
-    func testBossModeRegistersEmergencyHotKeyWithoutGlobalPointerMonitor() {
-        let hotKey = FakeHotKeyService()
-        let globalInput = FakeReaderGlobalInputService()
-        let runtime = AppRuntime(
-            hotKeyService: hotKey,
-            globalInputService: globalInput
-        )
-        defer { runtime.stop() }
-        var preferences = ReaderPreferences.defaults
-        preferences.bossModeEnabled = true
-
-        runtime.start(preferences: preferences)
-
-        XCTAssertEqual(hotKey.startCount, 1)
-        XCTAssertEqual(globalInput.startCount, 0)
-        XCTAssertTrue(runtime.hotKeyAvailable)
+        XCTAssertFalse(runtime.hotKeyAvailable)
         XCTAssertFalse(runtime.globalPointerAvailable)
     }
 
-    func testTurningBossModeOffUnregistersEmergencyHotKey() {
+    func testBossModeAlsoDoesNotInstallAnyGlobalInputHooks() {
         let hotKey = FakeHotKeyService()
         let globalInput = FakeReaderGlobalInputService()
         let runtime = AppRuntime(
@@ -50,13 +33,32 @@ final class AppRuntimeInputSafetyTests: XCTestCase {
         defer { runtime.stop() }
         var preferences = ReaderPreferences.defaults
         preferences.bossModeEnabled = true
+
         runtime.start(preferences: preferences)
 
-        runtime.applyPreferences(.defaults)
-
-        XCTAssertEqual(hotKey.stopCount, 1)
+        XCTAssertEqual(hotKey.startCount, 0)
         XCTAssertEqual(globalInput.startCount, 0)
         XCTAssertFalse(runtime.hotKeyAvailable)
+        XCTAssertFalse(runtime.globalPointerAvailable)
+    }
+
+    func testPreferenceChangesNeverInstallGlobalInputHooks() {
+        let hotKey = FakeHotKeyService()
+        let globalInput = FakeReaderGlobalInputService()
+        let runtime = AppRuntime(
+            hotKeyService: hotKey,
+            globalInputService: globalInput
+        )
+        defer { runtime.stop() }
+        runtime.start(preferences: ReaderPreferences.defaults)
+
+        var preferences = ReaderPreferences.defaults
+        preferences.bossModeEnabled = true
+        runtime.applyPreferences(preferences)
+        runtime.applyPreferences(ReaderPreferences.defaults)
+
+        XCTAssertEqual(hotKey.startCount, 0)
+        XCTAssertEqual(globalInput.startCount, 0)
     }
 }
 
