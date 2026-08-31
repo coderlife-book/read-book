@@ -31,22 +31,65 @@ final class ContinuousTextViewTests: XCTestCase {
     }
 
     @MainActor
+    func testScrollPositionReportingWaitsForShortIdlePeriod() {
+        let text = String(repeating: "滚动位置正文。\n", count: 20_000)
+        var reports: [BookPosition] = []
+        let (scrollView, _, coordinator) = makeReader {
+            reports.append($0)
+        }
+        let window = host(scrollView)
+        _ = window
+
+        coordinator.update(
+            bookID: UUID(),
+            text: text,
+            anchor: .init(utf16Offset: 0),
+            style: .default,
+            textColor: .textColor
+        )
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 300))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        NotificationCenter.default.post(
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        XCTAssertTrue(reports.isEmpty)
+
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+        XCTAssertEqual(reports.count, 1)
+        XCTAssertGreaterThan(reports[0].utf16Offset, 0)
+    }
+
+    @MainActor
     private func makeReader(
         onPositionChanged: @escaping (BookPosition) -> Void = { _ in }
     ) -> (NSScrollView, NSTextView, ContinuousTextView.Coordinator) {
-        let scrollView = NSScrollView(
-            frame: NSRect(x: 0, y: 0, width: 360, height: 260)
-        )
-        scrollView.contentView.postsBoundsChangedNotifications = true
-        let textView = NSTextView(
-            frame: NSRect(x: 0, y: 0, width: 360, height: 260)
-        )
-        scrollView.documentView = textView
+        let scrollView = ContinuousTextView.makeNativeScrollView()
+        scrollView.frame = NSRect(x: 0, y: 0, width: 360, height: 260)
+        let textView = scrollView.documentView as! NSTextView
         let coordinator = ContinuousTextView.Coordinator(
             onPositionChanged: onPositionChanged
         )
         coordinator.attach(scrollView: scrollView, textView: textView)
         return (scrollView, textView, coordinator)
+    }
+
+    @MainActor
+    private func host(_ scrollView: NSScrollView) -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 260),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        scrollView.frame = window.contentView!.bounds
+        scrollView.autoresizingMask = [.width, .height]
+        window.contentView!.addSubview(scrollView)
+        window.layoutIfNeeded()
+        return window
     }
 
     private func sourceFile(_ relativePath: String) throws -> String {
