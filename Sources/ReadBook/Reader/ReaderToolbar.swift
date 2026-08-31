@@ -16,21 +16,14 @@ struct ReaderToolbar: View {
             }
             .help("目录与最近阅读")
 
-            ZStack(alignment: .leading) {
-                ReaderDragRegion()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                }
-                .allowsHitTesting(false)
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 30)
-            .help("拖动窗口")
 
             Button {
                 onModeChange(readingMode == .paginated ? .continuous : .paginated)
