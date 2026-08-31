@@ -19,6 +19,9 @@ struct ReadBookApp: App {
                     appDelegate.cleanupHandler = { @MainActor in
                         runtime.stop()
                     }
+                    runtime.configureUpdater {
+                        await model.session.flush()
+                    }
                     runtime.start(preferences: model.preferences)
                 }
                 .background {
@@ -29,6 +32,12 @@ struct ReadBookApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .readBookWindowPreferencesChanged)) { _ in
                     runtime.applyPreferences(model.preferences)
                 }
+                .sheet(isPresented: Binding(
+                    get: { runtime.updater.isPresented },
+                    set: { if !$0 { runtime.updater.dismiss() } }
+                )) {
+                    UpdatePromptView(controller: runtime.updater)
+                }
         }
         .defaultSize(width: 360, height: 260)
         .commands {
@@ -38,10 +47,15 @@ struct ReadBookApp: App {
                     model.requestImport()
                 }
                 .keyboardShortcut("o", modifiers: .command)
+
+                Button("检查更新…") {
+                    runtime.showReader()
+                    Task { await runtime.updater.check(manual: true) }
+                }
             }
         }
 
-        MenuBarExtra("ReadBook", systemImage: "book.closed") {
+        MenuBarExtra {
             Button("显示 / 隐藏阅读器") {
                 runtime.toggleReaderFromMenu()
             }
@@ -106,11 +120,17 @@ struct ReadBookApp: App {
                 runtime.showReader()
                 model.requestImport()
             }
+            Button("检查更新…") {
+                runtime.showReader()
+                Task { await runtime.updater.check(manual: true) }
+            }
             SettingsLink { Text("设置…") }
             Divider()
             Button("退出 ReadBook") {
                 NSApp.terminate(nil)
             }
+        } label: {
+            Image(nsImage: ReadBookBrand.menuBarImage)
         }
 
         Settings {
