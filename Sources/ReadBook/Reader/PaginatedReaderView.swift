@@ -10,6 +10,7 @@ struct PaginatedReaderView: View {
     let onPositionChanged: (BookPosition) -> Void
 
     @State private var currentRange: PageRange?
+    @State private var hovering = false
     private let engine = PaginationEngine()
 
     var body: some View {
@@ -34,7 +35,20 @@ struct PaginatedReaderView: View {
                     onPrevious: { previous(width: innerWidth, height: innerHeight) },
                     onNext: { next(width: innerWidth, height: innerHeight) }
                 )
+
+                HStack {
+                    Image(systemName: "chevron.left")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color(nsColor: textColor))
+                .padding(.horizontal, 10)
+                .opacity(hovering ? 0.42 : 0)
+                .allowsHitTesting(false)
             }
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
             .onAppear { layout(width: innerWidth, height: innerHeight) }
             .onChange(of: anchor) { _, _ in
                 if currentRange?.location != anchor.utf16Offset {
