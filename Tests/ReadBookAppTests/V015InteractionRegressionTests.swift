@@ -32,6 +32,24 @@ final class V015InteractionRegressionTests: XCTestCase {
             current.id
         )
     }
+
+    func testToolbarDoesNotEmbedCustomDragRegion() throws {
+        let toolbar = try source("Sources/ReadBook/Reader/ReaderToolbar.swift")
+        XCTAssertFalse(toolbar.contains("ReaderDragRegion("))
+        XCTAssertFalse(toolbar.contains("performDrag(with:"))
+    }
+
+    private func source(_ relativePath: String) throws -> String {
+        let fileURL = URL(fileURLWithPath: #filePath)
+        let root = fileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: root.appendingPathComponent(relativePath),
+            encoding: .utf8
+        )
+    }
 }
 
 @MainActor
