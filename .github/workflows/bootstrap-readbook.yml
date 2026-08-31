@@ -120,6 +120,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The staged archive contains a permanent workflow, but this job's
+          # GITHUB_TOKEN is intentionally not allowed to create/update workflows.
+          # Keep workflow changes out of the bot-authored source commit; after
+          # bootstrap succeeds this existing workflow is converted in-place.
+          rm -f .github/workflows/macos-ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
