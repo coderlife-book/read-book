@@ -2,7 +2,7 @@ name: macOS CI
 
 on:
   push:
-    branches: ["main", "feature/readbook-v1", "fix/release-codesign"]
+    branches: ["main"]
   pull_request:
     branches: ["main"]
 
@@ -43,17 +43,17 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: ditto -c -k --sequesterRsrc --keepParent dist/ReadBook.app dist/ReadBook-macOS.zip
 
-      - name: Publish v0.1.1
+      - name: Publish v0.1.2
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v0.1.1 >/dev/null 2>&1; then
-            gh release upload v0.1.1 dist/ReadBook-macOS.zip --clobber
+          if gh release view v0.1.2 >/dev/null 2>&1; then
+            gh release upload v0.1.2 dist/ReadBook-macOS.zip --clobber
           else
-            gh release create v0.1.1 \
+            gh release create v0.1.2 \
               dist/ReadBook-macOS.zip \
               --target "$GITHUB_SHA" \
-              --title "ReadBook v0.1.1" \
-              --notes "修复 v0.1.0 下载后被 macOS 判定为‘已损坏’的问题。\n\n- 对最终 ReadBook.app bundle 重新执行 ad-hoc codesign\n- 将 Info.plist 与 bundle resources 纳入签名封印\n- CI 新增 codesign --verify --deep --strict 门槛\n- 保留 v0.1.0 的全部阅读功能\n\n说明：本版本仍未使用 Apple Developer ID 与 notarization。首次运行若出现未认证开发者提示，请右键 ReadBook.app → 打开，或到 系统设置 → 隐私与安全性 → 仍要打开。"
+              --title "ReadBook v0.1.2" \
+              --notes "修复阅读性能与窗口顶部白条。\n\n- 连续滚动改为窗口化虚拟渲染，不再把整本小说一次性塞入 TextKit\n- 默认仅渲染约 12 万 UTF-16 单元，接近边缘时自动重心定位并保持全书阅读 offset\n- 阅读窗口移除原生 .titled titlebar，彻底去除顶部系统白色区域\n- 新增连续渲染上限与 borderless 窗口回归测试\n- 保留 v0.1.1 的完整 bundle ad-hoc 签名修复\n\n说明：仍未使用 Apple Developer ID 与 notarization。首次运行可能需要右键 ReadBook.app → 打开，或到系统设置 → 隐私与安全性 → 仍要打开。"
           fi
