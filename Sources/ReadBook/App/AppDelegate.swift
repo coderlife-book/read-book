@@ -4,20 +4,13 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var flushHandler: (@MainActor () async -> Void)?
     var cleanupHandler: (@MainActor () -> Void)?
-    private var terminationPending = false
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard !terminationPending, let flushHandler else {
-            cleanupHandler?()
-            return terminationPending ? .terminateLater : .terminateNow
-        }
-
-        terminationPending = true
-        Task { @MainActor in
-            cleanupHandler?()
-            await flushHandler()
-            sender.reply(toApplicationShouldTerminate: true)
-        }
-        return .terminateLater
+        // Reading progress is already persisted on a short debounce and when the
+        // reader is hidden/backgrounded. Never hold macOS logout/restart hostage
+        // to one final asynchronous write: if the app is unhealthy, terminate
+        // immediately and accept at most a tiny amount of progress drift.
+        cleanupHandler?()
+        return .terminateNow
     }
 }
