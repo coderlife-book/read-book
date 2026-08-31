@@ -47,18 +47,7 @@ final class UpdateInstaller {
         guard result.status == 0 else {
             throw UpdateInstallerError.extractionFailed(result.stderr)
         }
-        let direct = directory.appendingPathComponent("ReadBook.app", isDirectory: true)
-        if fileManager.fileExists(atPath: direct.path) { return direct }
-        if let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) {
-            for case let url as URL in enumerator where url.lastPathComponent == "ReadBook.app" {
-                return url
-            }
-        }
-        throw UpdateInstallerError.candidateMissing
+        return try locateCandidate(in: directory)
     }
 
     func validateCandidate(appURL: URL, expectedVersion: AppVersion) async throws {
@@ -147,6 +136,21 @@ final class UpdateInstaller {
         } catch {
             throw UpdateInstallerError.helperLaunchFailed(error.localizedDescription)
         }
+    }
+
+    private func locateCandidate(in directory: URL) throws -> URL {
+        let direct = directory.appendingPathComponent("ReadBook.app", isDirectory: true)
+        if fileManager.fileExists(atPath: direct.path) { return direct }
+        if let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for case let url as URL in enumerator where url.lastPathComponent == "ReadBook.app" {
+                return url
+            }
+        }
+        throw UpdateInstallerError.candidateMissing
     }
 
     private func shellQuote(_ value: String) -> String {
