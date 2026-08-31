@@ -79,7 +79,7 @@ final class UpdateController {
             if latest > current {
                 availableRelease = release
                 state = .available(release)
-                isPresented = true
+                isPresented = manual
             } else {
                 availableRelease = nil
                 state = manual ? .upToDate(current) : .idle
