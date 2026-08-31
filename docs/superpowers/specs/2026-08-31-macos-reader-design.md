@@ -142,20 +142,28 @@ Recommended storage location:
 
 All imported book content is normalized to UTF-8 during import. Encoding complexity must be resolved once, at import time, rather than propagated through the reading pipeline.
 
-### 7.1 Library metadata
+### 7.1 Metadata ownership
 
-`library.json` stores lightweight book index data such as:
+`library.json` is the canonical source of mutable library/session metadata. It stores:
 
 - Book ID
 - Display title
 - Import time
 - Last-read time
-- Reading progress
 - Current `utf16Offset`
-- Total UTF-16 length or equivalent normalized length
+- Total UTF-16 length
 - Chapter count
 
-Per-book metadata may additionally store chapter index and source import metadata.
+Each book's `metadata.json` stores book-local and derived import data only, such as:
+
+- Content fingerprint/version
+- Original imported filename
+- Detected source encoding
+- Persisted chapter index
+
+Mutable reading position must not be independently persisted in both files. This avoids dual-write divergence.
+
+Reader-wide preferences and window state are stored through `UserDefaults` rather than duplicated in book metadata.
 
 ## 8. TXT Import Pipeline
 
@@ -319,7 +327,7 @@ Persistence must be forced on important lifecycle transitions, including:
 - App termination
 - Relevant application deactivation/background transitions
 
-Persisted user settings include at least:
+Persisted user settings include:
 
 - Last-opened book
 - Last reading position per book
@@ -330,7 +338,7 @@ Persisted user settings include at least:
 - Theme
 - Reader window size
 - Reader window position
-- Always-on-top state if desirable
+- Always-on-top state
 - Dock/widget-style application mode
 
 ## 15. Pagination Architecture
@@ -480,7 +488,7 @@ The project should include focused tests for logic that is easy to regress.
 - Resize window and preserve logical reading location
 - Change font size and preserve logical reading location
 - Switch books and restore independent positions
-- Toggle always-on-top
+- Toggle always-on-top and restore it after relaunch
 - Toggle Dock/widget-style mode
 - Drag-and-drop import
 
@@ -510,7 +518,7 @@ V1 is complete when all of the following are working reliably:
 - Font family can be changed
 - Three reading themes are available
 - Window size and position are restored
-- Always-on-top can be toggled
+- Always-on-top can be toggled and restored
 - Dock icon visibility mode can be toggled
 - Menu bar entry remains available in widget-style mode
 - App restart restores the last book and reading position
