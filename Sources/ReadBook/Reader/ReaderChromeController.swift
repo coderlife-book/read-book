@@ -22,7 +22,7 @@ final class ReaderChromeController {
         if inside {
             dismiss?.cancel()
             dismiss = nil
-            topReveal = scheduler.schedule(afterMilliseconds: 250) { [weak self] in
+            topReveal = scheduler.schedule(afterMilliseconds: 90) { [weak self] in
                 self?.topVisible = true
             }
         } else {
@@ -36,7 +36,7 @@ final class ReaderChromeController {
         if inside {
             dismiss?.cancel()
             dismiss = nil
-            bottomReveal = scheduler.schedule(afterMilliseconds: 250) { [weak self] in
+            bottomReveal = scheduler.schedule(afterMilliseconds: 90) { [weak self] in
                 self?.bottomVisible = true
             }
         } else {
