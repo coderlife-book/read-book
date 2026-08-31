@@ -45,17 +45,18 @@ The window will use these native capabilities:
 - `.titled`
 - `.resizable`
 - `.closable`
-- `.fullSizeContentView` when needed to keep the content visually edge-to-edge
 - `titleVisibility = .hidden`
 - `titlebarAppearsTransparent = true`
 - hidden standard red/yellow/green window buttons
 - transparent/clear window background where required by the existing card/frameless/transparent appearances
 
-The titlebar will remain owned by AppKit. ReadBook will not place a full-width custom drag view over the SwiftUI content.
+For v0.1.9 the reader will deliberately keep a real AppKit titlebar-height drag band rather than extending interactive SwiftUI/NSTextView content through that band. In other words, reliability wins over reclaiming roughly one titlebar of vertical content space.
+
+The titlebar background will visually match the reading card so it does not look like a conventional macOS titlebar. When controls are hidden, this band is simply clean background and remains fully owned by AppKit for dragging. If transient controls are placed in the titlebar, they must occupy only their exact control regions; the remaining titlebar area must remain native draggable chrome.
+
+`fullSizeContentView` is not part of the initial v0.1.9 implementation. It may only be reconsidered later if a real packaged-app drag test proves that extending content into the titlebar cannot intercept the native drag surface.
 
 The visible result must remain a clean reading card: no visible system title, no traffic-light buttons, no permanent toolbar strip, and no traditional gray titlebar.
-
-Toolbar controls may still appear on hover, but they must occupy explicit control hit regions. The remaining titlebar background must stay available to AppKit as draggable chrome.
 
 ### 2. Remove custom drag and resize overlays
 
@@ -117,19 +118,19 @@ The target appearance is the same clean card demonstrated by the current reader:
 
 - rounded card or configured frameless/transparent appearance
 - background and text colors unchanged
-- no visible titlebar
+- no visible conventional titlebar styling
 - no visible system window buttons
 - no visible scroll bar
-- content visually fills the card
+- the native drag band visually merges with the reader background
 - top controls remain transient/hover-driven
 
-The native titlebar is an implementation detail, not a visible design element.
+The native titlebar exists for interaction reliability but must read visually as ordinary card padding/background, not as window chrome.
 
 ## Event and data flow
 
 ### Window dragging
 
-1. Pointer presses an uncovered portion of the native titlebar region.
+1. Pointer presses an uncovered portion of the real native titlebar region.
 2. AppKit performs standard window movement.
 3. SwiftUI receives no synthetic drag gesture and does not own the drag lifecycle.
 
@@ -154,14 +155,15 @@ Expected production files include:
 - `Sources/ReadBook/Window/WindowCoordinator.swift`
   - restore and configure native titlebar behavior
   - remove custom resize hit-zone installation
+  - keep the native titlebar/content boundary intact for v0.1.9
 
 - `Sources/ReadBook/Reader/ReaderToolbar.swift`
   - remove `ReaderDragRegion`
-  - ensure toolbar controls have bounded hit regions and do not cover the full native drag surface
+  - keep transient controls out of the native drag band or move them into bounded native titlebar accessory regions
 
 - `Sources/ReadBook/Reader/ReaderRootView.swift`
-  - remove or reposition transparent top hover hit-testing that can block native titlebar interaction
-  - preserve transient toolbar reveal behavior without covering draggable chrome
+  - remove or reposition transparent top hover hit-testing so it cannot cover native titlebar chrome
+  - preserve transient toolbar reveal behavior without covering the draggable surface
 
 - `Sources/ReadBook/Reader/ContinuousTextView.swift`
   - simplify to a normal whole-document `NSScrollView` / `NSTextView`
@@ -183,9 +185,11 @@ Tests must verify the configured reader window actually retains native behavior:
 
 - `.titled` is present after configuration
 - `.resizable` is present
+- `.fullSizeContentView` is absent in v0.1.9
 - title is visually hidden
 - titlebar is transparent
 - standard window buttons are hidden
+- the native `contentLayoutRect` leaves a titlebar-height region outside interactive reader content
 - custom `ReaderResizeView` is not installed
 - `ReaderDragView` is not part of the reader hierarchy
 
@@ -209,17 +213,17 @@ Existing tests for font styling, text color, pagination, boss mode, window persi
 
 ### Release smoke gate
 
-CI success alone is not sufficient for this interaction release. Before publishing v0.1.9, the packaged `.app` must be exercised as an app-level smoke test for these exact behaviors:
+CI success alone is not sufficient for this interaction release. Before publishing v0.1.9, the packaged `.app` must be exercised at app level for these exact behaviors:
 
 1. Drag the window by the top non-control area.
 2. Resize from at least one edge and one corner.
 3. Switch to continuous mode and scroll several screens with vertical input.
 4. Stop scrolling and confirm the viewport does not snap back.
 5. Switch paginated -> continuous -> paginated and confirm the reading location stays close to the same text.
-6. Confirm the titlebar and traffic-light buttons remain invisible.
+6. Confirm the titlebar and traffic-light buttons remain visually absent.
 7. Confirm the clean card appearance remains intact.
 
-If an automated runner cannot faithfully synthesize macOS pointer dragging or trackpad input, the release notes and verification record must explicitly distinguish automated coverage from the required packaged-app smoke verification instead of claiming those interactions were proven by unit tests.
+If an automated runner cannot faithfully synthesize macOS pointer dragging or trackpad input, the verification record must explicitly distinguish automated coverage from packaged-app interaction verification instead of claiming unit tests prove real dragging/scrolling.
 
 ## Migration and compatibility
 
@@ -248,7 +252,7 @@ If profiling later shows unacceptable memory or startup cost for very large TXT 
 
 The redesign is accepted only when all of the following are true:
 
-- The reader can be moved by dragging the native top drag surface in the packaged app.
+- The reader can be moved by dragging the real native titlebar surface in the packaged app.
 - The reader can be resized using native macOS edge/corner behavior.
 - Continuous mode visibly scrolls with standard vertical mouse-wheel/trackpad input.
 - Continuous scrolling does not snap back because of model feedback.
@@ -256,6 +260,7 @@ The redesign is accepted only when all of the following are true:
 - The user-facing window still looks like the clean card reader, not a conventional titled macOS window.
 - No custom full-width drag overlay is present.
 - No custom resize hit-zone overlay is present.
+- Interactive reader content does not occupy the native titlebar drag band in v0.1.9.
 - No global keyboard or mouse event monitor is introduced.
 - Automated regression tests pass and the packaged-app interaction smoke gate is recorded before release.
 
