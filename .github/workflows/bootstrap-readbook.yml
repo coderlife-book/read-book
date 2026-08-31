@@ -1,69 +1,19 @@
-name: Bootstrap ReadBook source
+name: macOS CI
 
 on:
   push:
-    branches: ["feature/readbook-v1"]
+    branches: ["main", "feature/readbook-v1"]
+  pull_request:
+    branches: ["main"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  bootstrap-test-and-commit:
+  test-build-package:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify and expand staged source
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import base64
-          import hashlib
-
-          source = Path('.ci/readbook-source.tar.gz.b64')
-          encoded = source.read_bytes()
-          archive = base64.b64decode(encoded)
-          digest = hashlib.sha256(archive).hexdigest()
-          expected = '984209f4a9f616a5c5db5289fe98463b4400c87b37201952989ca62d71e866f0'
-          if digest != expected:
-              raise SystemExit(f'archive checksum mismatch: {digest} != {expected}')
-          Path('/tmp/readbook-source.tar.gz').write_bytes(archive)
-          PY
-          tar -xzf /tmp/readbook-source.tar.gz
-          rm -f .ci/swift-test-error.txt
-
-      - name: Apply macOS compiler fixes discovered by CI
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path('Sources/ReadBook/Reader/ContinuousTextView.swift')
-          s = p.read_text()
-          s = s.replace(
-              'textView.maxSize = NSSize(width: .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)',
-              'textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)'
-          )
-          if '    @MainActor\n    final class Coordinator: NSObject {' not in s:
-              s = s.replace(
-                  '    final class Coordinator: NSObject {',
-                  '    @MainActor\n    final class Coordinator: NSObject {'
-              )
-          s = s.replace(
-              '            ) { [weak self] _ in\n                self?.reportTopVisiblePosition()\n            }',
-              '            ) { [weak self] _ in\n                Task { @MainActor in\n                    self?.reportTopVisiblePosition()\n                }\n            }'
-          )
-          p.write_text(s)
-
-          p = Path('Tests/ReadBookCoreTests/PaginationEngineTests.swift')
-          s = p.read_text()
-          if not s.startswith('import CoreFoundation\n'):
-              s = 'import CoreFoundation\n' + s
-          p.write_text(s)
-          PY
 
       - name: Toolchain
         run: |
@@ -71,66 +21,11 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Run tests
-        shell: bash
-        run: |
-          set +e
-          swift test > /tmp/swift-test.log 2>&1
-          status=$?
-          cat /tmp/swift-test.log
-          if [ "$status" -ne 0 ]; then
-            {
-              echo "Swift test failed with exit code $status"
-              echo
-              grep -nE '(^|[^A-Za-z])(error:|fatal error:|failed:|FAIL|XCTAssert)' /tmp/swift-test.log || true
-              echo
-              echo "--- last 220 log lines ---"
-              tail -n 220 /tmp/swift-test.log
-            } > .ci/swift-test-error.txt
-          fi
-          exit "$status"
+      - name: Test
+        run: swift test
 
-      - name: Persist failure diagnostics
-        if: failure()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -f .ci/swift-test-error.txt ]; then
-            exit 0
-          fi
-          cp .ci/swift-test-error.txt /tmp/swift-test-error.txt
-          git fetch origin feature/readbook-v1
-          git reset --hard origin/feature/readbook-v1
-          git clean -fd
-          mkdir -p .ci
-          cp /tmp/swift-test-error.txt .ci/swift-test-error.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/swift-test-error.txt
-          git commit -m "[skip ci] diagnostics: capture macOS swift test failure"
-          git push origin HEAD:feature/readbook-v1
-
-      - name: Build ReadBook
+      - name: Build
         run: swift build
 
       - name: Package local app bundle
         run: Scripts/build-app.sh
-
-      - name: Commit verified source to feature branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The staged archive contains a permanent workflow, but this job's
-          # GITHUB_TOKEN is intentionally not allowed to create/update workflows.
-          # Keep workflow changes out of the bot-authored source commit; after
-          # bootstrap succeeds this existing workflow is converted in-place.
-          rm -f .github/workflows/macos-ci.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No source changes to commit"
-            exit 0
-          fi
-          git commit -m "feat: implement ReadBook macOS reader"
-          git push origin HEAD:feature/readbook-v1
