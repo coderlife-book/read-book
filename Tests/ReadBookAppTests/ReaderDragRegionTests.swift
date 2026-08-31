@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import ObjectiveC
 import XCTest
 @testable import ReadBook
 
@@ -19,6 +20,17 @@ final class ReaderDragRegionTests: XCTestCase {
         view.mouseDown(with: event)
 
         XCTAssertEqual(window.performDragCallCount, 1)
+    }
+
+    func testDragViewOwnsCursorRectPolicy() throws {
+        let dragMethod = try XCTUnwrap(
+            class_getInstanceMethod(ReaderDragView.self, #selector(NSView.resetCursorRects))
+        )
+        let baseMethod = try XCTUnwrap(
+            class_getInstanceMethod(NSView.self, #selector(NSView.resetCursorRects))
+        )
+
+        XCTAssertNotEqual(method_getImplementation(dragMethod), method_getImplementation(baseMethod))
     }
 
     func testCursorUpdateUsesArrowCursor() throws {
