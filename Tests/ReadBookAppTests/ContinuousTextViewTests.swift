@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import CoreGraphics
 import ReadBookCore
 import XCTest
 @testable import ReadBook
@@ -73,6 +74,95 @@ final class ContinuousTextViewTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.08))
         XCTAssertEqual(reports.count, 1)
         XCTAssertGreaterThan(reports[0].utf16Offset, 0)
+    }
+
+    @MainActor
+    func testNativeScrollWheelChangesClipViewOrigin() throws {
+        let text = String(repeating: "原生滚轮正文。\n", count: 20_000)
+        let total = (text as NSString).length
+        let (scrollView, _, coordinator) = makeReader()
+        let window = host(scrollView)
+        _ = window
+
+        coordinator.update(
+            bookID: UUID(),
+            text: text,
+            anchor: .init(utf16Offset: total / 3),
+            style: .default,
+            textColor: .textColor
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+
+        let startY = scrollView.contentView.bounds.minY
+        XCTAssertGreaterThan(startY, 0)
+
+        let cgEvent = try XCTUnwrap(
+            CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .pixel,
+                wheelCount: 1,
+                wheel1: -180,
+                wheel2: 0,
+                wheel3: 0
+            )
+        )
+        let event = try XCTUnwrap(NSEvent(cgEvent: cgEvent))
+
+        scrollView.scrollWheel(with: event)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+
+        XCTAssertNotEqual(
+            scrollView.contentView.bounds.minY,
+            startY,
+            accuracy: 0.5
+        )
+    }
+
+    @MainActor
+    func testReportedPositionFedBackDoesNotSnapViewport() {
+        let text = String(repeating: "反馈回路正文。\n", count: 20_000)
+        let bookID = UUID()
+        var reported: BookPosition?
+        let (scrollView, _, coordinator) = makeReader {
+            reported = $0
+        }
+        let window = host(scrollView)
+        _ = window
+
+        coordinator.update(
+            bookID: bookID,
+            text: text,
+            anchor: .init(utf16Offset: 0),
+            style: .default,
+            textColor: .textColor
+        )
+        RunLoop.main.run(until: Date().addingTimeInterval(0.10))
+        reported = nil
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 360))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+
+        guard let reported else {
+            XCTFail("Expected native scroll position to be reported")
+            return
+        }
+        XCTAssertGreaterThan(reported.utf16Offset, 0)
+
+        let yAfterScroll = scrollView.contentView.bounds.minY
+        coordinator.update(
+            bookID: bookID,
+            text: text,
+            anchor: reported,
+            style: .default,
+            textColor: .textColor
+        )
+
+        XCTAssertEqual(
+            scrollView.contentView.bounds.minY,
+            yAfterScroll,
+            accuracy: 1.0
+        )
     }
 
     @MainActor
