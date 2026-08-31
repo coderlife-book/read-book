@@ -6,6 +6,11 @@ import ReadBookCore
 
 @MainActor
 final class AppRuntimeInputSafetyTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        _ = NSApplication.shared
+    }
+
     func testNormalStartupDoesNotInstallAnyGlobalInputHooks() {
         let hotKey = FakeHotKeyService()
         let globalInput = FakeReaderGlobalInputService()
