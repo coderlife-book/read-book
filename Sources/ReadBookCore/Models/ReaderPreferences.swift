@@ -109,7 +109,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         paragraphSpacing: 9,
         theme: .soft,
         alwaysOnTop: false,
-        appPresenceMode: .widgetStyle,
+        appPresenceMode: .normal,
         bossModeEnabled: false,
         bossModeProfile: .floatingReading,
         windowAppearance: .card,
