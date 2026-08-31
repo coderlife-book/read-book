@@ -5,63 +5,106 @@ import UniformTypeIdentifiers
 
 struct ReaderRootView: View {
     @Bindable var model: AppModel
+    let runtime: AppRuntime
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var hovering = false
     @State private var showLibrary = false
     @State private var selectedRecoveryEncoding: ImportedTextEncoding = .gb18030
 
     var body: some View {
         let palette = ThemePalette.resolve(model.preferences.theme)
         let style = readerStyle
+        let interactiveStealth = runtime.windowState.state == .interactiveStealth
+        let topVisible = runtime.chrome.topVisible || interactiveStealth
+        let bottomVisible = runtime.chrome.bottomVisible || interactiveStealth
 
         ZStack {
-            Color(nsColor: palette.background)
+            surfaceBackground(palette: palette)
 
             if model.currentBook == nil {
                 emptyState(textColor: palette.text)
             } else {
                 readingSurface(style: style, palette: palette)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        if inside { runtime.chrome.bodyEntered() }
+                    }
 
                 VStack(spacing: 0) {
-                    ReaderToolbar(
-                        title: model.currentBook?.title ?? "ReadBook",
-                        readingMode: model.readingMode,
-                        alwaysOnTop: model.preferences.alwaysOnTop,
-                        onLibrary: { showLibrary.toggle() },
-                        onModeChange: { model.setMode($0) },
-                        onPin: {
-                            model.updatePreferences { $0.alwaysOnTop.toggle() }
-                            NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
-                        }
-                    )
-                    .opacity(hovering ? 1 : 0)
-                    .allowsHitTesting(hovering)
+                    if topVisible {
+                        ReaderToolbar(
+                            title: model.currentBook?.title ?? "ReadBook",
+                            readingMode: model.readingMode,
+                            alwaysOnTop: model.preferences.alwaysOnTop,
+                            onLibrary: {
+                                runtime.chrome.setControlInteractionHeld(true)
+                                showLibrary.toggle()
+                            },
+                            onModeChange: { model.setMode($0) },
+                            onPin: {
+                                model.updatePreferences { $0.alwaysOnTop.toggle() }
+                                NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
+                            }
+                        )
+                        .foregroundStyle(Color(nsColor: palette.text))
+                        .background(controlScrim(palette: palette))
+                        .onHover { runtime.chrome.setControlInteractionHeld($0) }
+                        .transition(.opacity)
+                    }
 
-                    Spacer()
+                    Spacer(minLength: 0)
 
-                    if hovering {
+                    if bottomVisible {
                         HStack {
                             Text(model.currentChapter?.title ?? "")
                                 .lineLimit(1)
                             Spacer()
                             Text("\(model.progressPercent)%")
+                                .monospacedDigit()
                         }
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color(nsColor: palette.secondaryText))
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 11)
+                        .frame(height: 32)
+                        .background(controlScrim(palette: palette))
+                        .onHover { runtime.chrome.setControlInteractionHeld($0) }
                         .transition(.opacity)
                     }
                 }
+
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: 20)
+                        .contentShape(Rectangle())
+                        .onHover { runtime.chrome.topZoneChanged(inside: $0) }
+                    Spacer(minLength: 0)
+                    Color.clear
+                        .frame(height: 16)
+                        .contentShape(Rectangle())
+                        .onHover { runtime.chrome.bottomZoneChanged(inside: $0) }
+                }
+                .allowsHitTesting(!isPointerPassThrough)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .clipShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
+        .animation(.easeOut(duration: 0.14), value: runtime.chrome.topVisible)
+        .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
         .popover(isPresented: $showLibrary, arrowEdge: .top) {
             LibraryPopoverView(model: model)
+        }
+        .onChange(of: showLibrary) { _, presented in
+            runtime.chrome.setControlInteractionHeld(presented)
+        }
+        .onChange(of: runtime.windowState.state) { _, state in
+            switch state {
+            case .interactiveStealth:
+                runtime.chrome.revealAllImmediately()
+            case .floatingText, .hidden:
+                runtime.chrome.hideAllImmediately()
+            case .normal:
+                runtime.chrome.hideAllImmediately()
+            }
         }
         .fileImporter(
             isPresented: $model.isImportPresented,
@@ -112,6 +155,10 @@ struct ReaderRootView: View {
         }
     }
 
+    private var isPointerPassThrough: Bool {
+        runtime.windowState.state == .floatingText && !runtime.windowState.lockInteractive
+    }
+
     @ViewBuilder
     private func readingSurface(style: ReaderTextStyle, palette: ThemePalette) -> some View {
         switch model.readingMode {
@@ -134,6 +181,27 @@ struct ReaderRootView: View {
                     onPositionChanged: model.updatePosition
                 )
             }
+        }
+    }
+
+    private func surfaceBackground(palette: ThemePalette) -> some View {
+        let color = Color(nsColor: palette.background)
+        return Group {
+            switch model.preferences.windowAppearance {
+            case .card:
+                color
+            case .frameless:
+                color.opacity(model.preferences.framelessBackgroundOpacity)
+            case .transparent:
+                Color.clear
+            }
+        }
+    }
+
+    private func controlScrim(palette: ThemePalette) -> some View {
+        ZStack {
+            Color(nsColor: palette.background).opacity(model.preferences.theme == .dark ? 0.94 : 0.96)
+            Rectangle().fill(.ultraThinMaterial).opacity(0.18)
         }
     }
 
