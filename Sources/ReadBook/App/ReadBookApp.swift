@@ -6,32 +6,35 @@ import SwiftUI
 struct ReadBookApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
-    private let windowRegistry = WindowRegistry()
+    private let runtime = AppRuntime()
 
     var body: some Scene {
         Window("ReadBook", id: "reader") {
-            ReaderRootView(model: model)
+            ReaderRootView(model: model, runtime: runtime)
                 .frame(minWidth: 280, minHeight: 180)
                 .task {
                     appDelegate.flushHandler = { @MainActor in
                         await model.session.flush()
                     }
+                    appDelegate.cleanupHandler = { @MainActor in
+                        runtime.stop()
+                    }
+                    runtime.start(preferences: model.preferences)
                 }
                 .background {
                     WindowAccessor { window in
-                        windowRegistry.register(window)
-                        windowRegistry.apply(model.preferences)
+                        runtime.register(window: window)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .readBookWindowPreferencesChanged)) { _ in
-                    windowRegistry.apply(model.preferences)
+                    runtime.applyPreferences(model.preferences)
                 }
         }
         .defaultSize(width: 360, height: 260)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("导入 TXT…") {
-                    windowRegistry.showReader()
+                    runtime.showReader()
                     model.requestImport()
                 }
                 .keyboardShortcut("o", modifiers: .command)
@@ -40,7 +43,50 @@ struct ReadBookApp: App {
 
         MenuBarExtra("ReadBook", systemImage: "book.closed") {
             Button("显示 / 隐藏阅读器") {
-                windowRegistry.toggleReader()
+                runtime.toggleReaderFromMenu()
+            }
+
+            Divider()
+
+            Toggle("老板模式", isOn: Binding(
+                get: { model.preferences.bossModeEnabled },
+                set: { value in
+                    model.updatePreferences { preferences in
+                        preferences.bossModeEnabled = value
+                        if value, preferences.windowAppearance == .card {
+                            preferences.windowAppearance = .transparent
+                        }
+                    }
+                    runtime.applyPreferences(model.preferences)
+                }
+            ))
+
+            Menu("老板模式行为") {
+                Button("悬浮阅读") {
+                    runtime.setBossProfile(.floatingReading, using: model)
+                }
+                Button("隐蔽：移出即隐藏") {
+                    runtime.setBossProfile(.concealed, using: model)
+                }
+            }
+
+            Toggle("锁定为可交互", isOn: Binding(
+                get: { runtime.windowState.lockInteractive },
+                set: { runtime.setLockInteractive($0) }
+            ))
+
+            Menu("窗口外观") {
+                Button("卡片") { runtime.setAppearance(.card, using: model) }
+                Button("无边框") { runtime.setAppearance(.frameless, using: model) }
+                Button("纯透明") { runtime.setAppearance(.transparent, using: model) }
+            }
+
+            Text("紧急隐藏：⌃⌥R")
+                .foregroundStyle(.secondary)
+
+            if !runtime.hotKeyAvailable {
+                Text("全局快捷键注册失败，可使用此菜单隐藏")
+                    .foregroundStyle(.secondary)
             }
 
             if !model.books.isEmpty {
@@ -49,7 +95,7 @@ struct ReadBookApp: App {
                     Button(book.title) {
                         Task {
                             try? await model.open(book.id)
-                            windowRegistry.showReader()
+                            runtime.showReader()
                         }
                     }
                 }
@@ -57,7 +103,7 @@ struct ReadBookApp: App {
 
             Divider()
             Button("导入 TXT…") {
-                windowRegistry.showReader()
+                runtime.showReader()
                 model.requestImport()
             }
             SettingsLink { Text("设置…") }
@@ -68,7 +114,7 @@ struct ReadBookApp: App {
         }
 
         Settings {
-            SettingsView(model: model, windowRegistry: windowRegistry)
+            SettingsView(model: model, runtime: runtime)
         }
     }
 }
