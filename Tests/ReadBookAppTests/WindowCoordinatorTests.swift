@@ -49,6 +49,34 @@ final class WindowCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testAppPresenceOnlyTransitionsWhenActivationPolicyActuallyChanges() {
+        XCTAssertFalse(
+            WindowRegistry.needsActivationPolicyChange(
+                current: .accessory,
+                targetMode: .widgetStyle
+            )
+        )
+        XCTAssertFalse(
+            WindowRegistry.needsActivationPolicyChange(
+                current: .regular,
+                targetMode: .normal
+            )
+        )
+        XCTAssertTrue(
+            WindowRegistry.needsActivationPolicyChange(
+                current: .accessory,
+                targetMode: .normal
+            )
+        )
+        XCTAssertTrue(
+            WindowRegistry.needsActivationPolicyChange(
+                current: .regular,
+                targetMode: .widgetStyle
+            )
+        )
+    }
+
+    @MainActor
     func testRevalidatedFrameClampsDisconnectedDisplayFrameIntoVisibleScreen() {
         let old = CGRect(x: 2500, y: 100, width: 360, height: 260)
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
