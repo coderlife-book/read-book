@@ -79,7 +79,7 @@ struct ReadBookApp: App {
                 Button("悬浮阅读") {
                     runtime.setBossProfile(.floatingReading, using: model)
                 }
-                Button("隐蔽：移出即隐藏") {
+                Button("隐蔽") {
                     runtime.setBossProfile(.concealed, using: model)
                 }
             }
@@ -95,13 +95,8 @@ struct ReadBookApp: App {
                 Button("纯透明") { runtime.setAppearance(.transparent, using: model) }
             }
 
-            Text("紧急隐藏：⌃⌥R")
+            Text("安全模式：不监听全局键盘/鼠标")
                 .foregroundStyle(.secondary)
-
-            if !runtime.hotKeyAvailable {
-                Text("全局快捷键注册失败，可使用此菜单隐藏")
-                    .foregroundStyle(.secondary)
-            }
 
             if !model.books.isEmpty {
                 Divider()
