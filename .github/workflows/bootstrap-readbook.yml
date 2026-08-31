@@ -35,21 +35,25 @@ jobs:
           codesign -dv --verbose=4 dist/ReadBook.app
           codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 
+      - name: Gatekeeper assessment
+        run: |
+          spctl --assess --type execute --verbose=4 dist/ReadBook.app || true
+
       - name: Create release archive
         if: github.ref == 'refs/heads/main'
         run: ditto -c -k --sequesterRsrc --keepParent dist/ReadBook.app dist/ReadBook-macOS.zip
 
-      - name: Publish v0.1.0
+      - name: Publish v0.1.1
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v0.1.0 >/dev/null 2>&1; then
-            gh release upload v0.1.0 dist/ReadBook-macOS.zip --clobber
+          if gh release view v0.1.1 >/dev/null 2>&1; then
+            gh release upload v0.1.1 dist/ReadBook-macOS.zip --clobber
           else
-            gh release create v0.1.0 \
+            gh release create v0.1.1 \
               dist/ReadBook-macOS.zip \
               --target "$GITHUB_SHA" \
-              --title "ReadBook v0.1.0" \
-              --notes "ReadBook 首个可用版本。\n\n- macOS 26+ 原生 TXT 小说阅读器\n- 分页 / 连续滚动双模式\n- UTF-8、UTF-16、GB18030/GBK、Big5 导入\n- 自动章节识别与目录跳转\n- 多本书与独立阅读进度\n- Widget 风格窗口、置顶、Dock/菜单栏模式\n\n说明：此构建未进行 Apple Developer 签名与 notarization，首次运行可能需要在 macOS 系统设置中手动允许。"
+              --title "ReadBook v0.1.1" \
+              --notes "修复 v0.1.0 下载后被 macOS 判定为‘已损坏’的问题。\n\n- 对最终 ReadBook.app bundle 重新执行 ad-hoc codesign\n- 将 Info.plist 与 bundle resources 纳入签名封印\n- CI 新增 codesign --verify --deep --strict 门槛\n- 保留 v0.1.0 的全部阅读功能\n\n说明：本版本仍未使用 Apple Developer ID 与 notarization。首次运行若出现未认证开发者提示，请右键 ReadBook.app → 打开，或到 系统设置 → 隐私与安全性 → 仍要打开。"
           fi
