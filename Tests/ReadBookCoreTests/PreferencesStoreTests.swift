@@ -49,6 +49,15 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(decoded, value)
     }
 
+    func testCustomTextColorSurvivesPreferencesRoundTrip() throws {
+        let json = #"{"readingMode":"paginated","fontFamily":"PingFang SC","fontSize":17,"lineSpacing":8,"paragraphSpacing":9,"theme":"soft","alwaysOnTop":false,"appPresenceMode":"widgetStyle","textColorHex":"#336699"}"#
+        let decoded = try JSONDecoder().decode(ReaderPreferences.self, from: Data(json.utf8))
+        let encoded = try JSONEncoder().encode(decoded)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        XCTAssertEqual(object["textColorHex"] as? String, "#336699")
+    }
+
     func testLayoutSignatureChangesForPaginationAffectingSettings() {
         let a = LayoutSignature(width: 316, height: 220, style: .default)
         var changed = ReaderTextStyle.default
