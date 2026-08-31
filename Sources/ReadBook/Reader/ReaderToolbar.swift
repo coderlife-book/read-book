@@ -10,17 +10,24 @@ struct ReaderToolbar: View {
     let onPin: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button(action: onLibrary) {
                 Image(systemName: "books.vertical")
             }
             .help("目录与最近阅读")
 
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
+            ZStack(alignment: .leading) {
+                ReaderDragRegion()
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                }
+                .allowsHitTesting(false)
+            }
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .help("拖动窗口")
 
             Button {
                 onModeChange(readingMode == .paginated ? .continuous : .paginated)
@@ -42,6 +49,6 @@ struct ReaderToolbar: View {
         .buttonStyle(.plain)
         .font(.system(size: 13, weight: .medium))
         .padding(.horizontal, 14)
-        .padding(.top, 12)
+        .frame(height: 42)
     }
 }
