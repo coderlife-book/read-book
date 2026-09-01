@@ -8,6 +8,7 @@ final class AppRuntime {
     let windowRegistry: WindowRegistry
     let windowState: ReaderWindowStateController
     let chrome: ReaderChromeController
+    let titlebar: ReaderTitlebarState
     let updater: UpdateController
 
     private(set) var systemInputHooksEnabled = false
@@ -21,6 +22,7 @@ final class AppRuntime {
         self.windowRegistry = windowRegistry
         self.windowState = ReaderWindowStateController(driver: windowRegistry)
         self.chrome = ReaderChromeController()
+        self.titlebar = ReaderTitlebarState()
         self.updater = updater
     }
 
