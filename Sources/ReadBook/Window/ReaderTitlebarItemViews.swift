@@ -74,6 +74,15 @@ final class ReaderTitlebarPassthroughHostView: NSView {
 @MainActor
 struct ReaderTitlebarLibraryItemView: View {
     @Bindable var state: ReaderTitlebarState
+    let onControlHover: (Bool) -> Void
+
+    init(
+        state: ReaderTitlebarState,
+        onControlHover: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.state = state
+        self.onControlHover = onControlHover
+    }
 
     var body: some View {
         Button {
@@ -86,6 +95,7 @@ struct ReaderTitlebarLibraryItemView: View {
         .opacity(state.isVisible ? 1 : 0)
         .animation(.easeOut(duration: 0.14), value: state.isVisible)
         .frame(width: 30, height: 30)
+        .onHover(perform: onControlHover)
     }
 }
 
@@ -108,6 +118,15 @@ struct ReaderTitlebarTitleItemView: View {
 @MainActor
 struct ReaderTitlebarModeItemView: View {
     @Bindable var state: ReaderTitlebarState
+    let onControlHover: (Bool) -> Void
+
+    init(
+        state: ReaderTitlebarState,
+        onControlHover: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.state = state
+        self.onControlHover = onControlHover
+    }
 
     var body: some View {
         Button {
@@ -124,12 +143,22 @@ struct ReaderTitlebarModeItemView: View {
         .opacity(state.isVisible ? 1 : 0)
         .animation(.easeOut(duration: 0.14), value: state.isVisible)
         .frame(width: 30, height: 30)
+        .onHover(perform: onControlHover)
     }
 }
 
 @MainActor
 struct ReaderTitlebarPinItemView: View {
     @Bindable var state: ReaderTitlebarState
+    let onControlHover: (Bool) -> Void
+
+    init(
+        state: ReaderTitlebarState,
+        onControlHover: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.state = state
+        self.onControlHover = onControlHover
+    }
 
     var body: some View {
         Button {
@@ -142,12 +171,22 @@ struct ReaderTitlebarPinItemView: View {
         .opacity(state.isVisible ? 1 : 0)
         .animation(.easeOut(duration: 0.14), value: state.isVisible)
         .frame(width: 30, height: 30)
+        .onHover(perform: onControlHover)
     }
 }
 
 @MainActor
 struct ReaderTitlebarSettingsItemView: View {
     @Bindable var state: ReaderTitlebarState
+    let onControlHover: (Bool) -> Void
+
+    init(
+        state: ReaderTitlebarState,
+        onControlHover: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.state = state
+        self.onControlHover = onControlHover
+    }
 
     var body: some View {
         SettingsLink {
@@ -158,6 +197,7 @@ struct ReaderTitlebarSettingsItemView: View {
         .opacity(state.isVisible ? 1 : 0)
         .animation(.easeOut(duration: 0.14), value: state.isVisible)
         .frame(width: 30, height: 30)
+        .onHover(perform: onControlHover)
     }
 }
 
