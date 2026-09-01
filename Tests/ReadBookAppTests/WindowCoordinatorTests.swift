@@ -6,7 +6,7 @@ import XCTest
 
 final class WindowCoordinatorTests: XCTestCase {
     @MainActor
-    func testConfigureRemovesTitledChromeKeepsResizableAndDisablesBackgroundDrag() {
+    func testConfigureKeepsNativeResizableWindowWhileHidingSystemTitlebarContent() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 260),
             styleMask: [.titled, .resizable, .closable],
@@ -16,10 +16,18 @@ final class WindowCoordinatorTests: XCTestCase {
 
         let coordinator = WindowCoordinator()
         coordinator.configure(window)
+        coordinator.configure(window)
 
-        XCTAssertFalse(window.styleMask.contains(.titled))
+        XCTAssertTrue(window.styleMask.contains(.titled))
+        XCTAssertTrue(window.styleMask.contains(.fullSizeContentView))
         XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertTrue(window.titlebarAppearsTransparent)
         XCTAssertFalse(window.isMovableByWindowBackground)
+        XCTAssertTrue(window.standardWindowButton(.closeButton)?.isHidden == true)
+        XCTAssertTrue(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
+        XCTAssertTrue(window.standardWindowButton(.zoomButton)?.isHidden == true)
+        XCTAssertEqual(window.contentView?.safeAreaInsets.top, 0)
     }
 
     @MainActor
@@ -46,6 +54,8 @@ final class WindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(window.hasShadow)
         registry.applyAppearance(.card)
         XCTAssertTrue(window.hasShadow)
+        XCTAssertEqual(window.contentView?.layer?.cornerRadius, 26)
+        XCTAssertTrue(window.contentView?.layer?.masksToBounds == true)
     }
 
     @MainActor

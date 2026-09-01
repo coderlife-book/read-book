@@ -33,62 +33,70 @@ struct ReaderRootView: View {
                     .onHover { inside in
                         if inside { runtime.chrome.bodyEntered() }
                     }
+            }
 
-                VStack(spacing: 0) {
-                    if topVisible {
-                        ReaderToolbar(
-                            title: model.currentBook?.title ?? "ReadBook",
-                            readingMode: model.readingMode,
-                            alwaysOnTop: model.preferences.alwaysOnTop,
-                            onLibrary: {
-                                runtime.chrome.setControlInteractionHeld(true)
-                                showLibrary.toggle()
-                            },
-                            onModeChange: { model.setMode($0) },
-                            onPin: {
-                                model.updatePreferences { $0.alwaysOnTop.toggle() }
-                                NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
-                            }
-                        )
-                        .foregroundStyle(Color(nsColor: palette.text))
-                        .background(controlScrim(palette: palette))
-                        .onHover { runtime.chrome.setControlInteractionHeld($0) }
-                        .transition(.opacity)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if bottomVisible {
-                        HStack {
-                            Text(model.currentChapter?.title ?? "")
-                                .lineLimit(1)
-                            Spacer()
-                            Text("\(model.progressPercent)%")
-                                .monospacedDigit()
+            VStack(spacing: 0) {
+                if topVisible {
+                    ReaderToolbar(
+                        title: model.currentBook?.title ?? "ReadBook",
+                        readingMode: model.readingMode,
+                        alwaysOnTop: model.preferences.alwaysOnTop,
+                        onLibrary: {
+                            runtime.chrome.setControlInteractionHeld(true)
+                            showLibrary.toggle()
+                        },
+                        onModeChange: { model.setMode($0) },
+                        onPin: {
+                            model.updatePreferences { $0.alwaysOnTop.toggle() }
+                            NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
                         }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color(nsColor: palette.secondaryText))
-                        .padding(.horizontal, 16)
-                        .frame(height: 32)
-                        .background(controlScrim(palette: palette))
-                        .onHover { runtime.chrome.setControlInteractionHeld($0) }
-                        .transition(.opacity)
-                    }
+                    )
+                    .foregroundStyle(Color(nsColor: palette.text))
+                    .background(controlScrim(palette: palette))
+                    .onHover { runtime.chrome.setControlInteractionHeld($0) }
+                    .transition(.opacity)
                 }
 
-                VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                if model.currentBook != nil, bottomVisible {
+                    HStack {
+                        Text(model.currentChapter?.title ?? "")
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(model.progressPercent)%")
+                            .monospacedDigit()
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(nsColor: palette.secondaryText))
+                    .padding(.horizontal, 16)
+                    .frame(height: 32)
+                    .background(controlScrim(palette: palette))
+                    .onHover { runtime.chrome.setControlInteractionHeld($0) }
+                    .transition(.opacity)
+                }
+            }
+
+            VStack(spacing: 0) {
+                if topVisible {
                     Color.clear
                         .frame(height: 20)
-                        .contentShape(Rectangle())
-                        .onHover { runtime.chrome.topZoneChanged(inside: $0) }
-                    Spacer(minLength: 0)
+                        .allowsHitTesting(false)
+                } else {
+                    ReaderDragRegion {
+                        runtime.chrome.topZoneChanged(inside: $0)
+                    }
+                    .frame(height: 20)
+                }
+                Spacer(minLength: 0)
+                if model.currentBook != nil {
                     Color.clear
                         .frame(height: 16)
                         .contentShape(Rectangle())
                         .onHover { runtime.chrome.bottomZoneChanged(inside: $0) }
                 }
-                .allowsHitTesting(!isPointerPassThrough)
             }
+            .allowsHitTesting(!isPointerPassThrough)
         }
         .clipShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))

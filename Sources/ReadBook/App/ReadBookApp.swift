@@ -39,6 +39,7 @@ struct ReadBookApp: App {
                     UpdatePromptView(controller: runtime.updater)
                 }
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 360, height: 260)
         .commands {
             CommandGroup(after: .newItem) {

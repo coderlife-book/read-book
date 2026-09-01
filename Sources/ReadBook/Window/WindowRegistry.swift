@@ -58,10 +58,13 @@ final class WindowRegistry: ReaderWindowDriving {
         readerWindow.isOpaque = false
         switch appearance {
         case .card:
+            applyContentCornerRadius(26, to: readerWindow)
             if !readerWindow.hasShadow { readerWindow.hasShadow = true }
         case .frameless, .transparent:
+            applyContentCornerRadius(0, to: readerWindow)
             if readerWindow.hasShadow { readerWindow.hasShadow = false }
         }
+        readerWindow.invalidateShadow()
     }
 
     func setAlwaysOnTop(_ enabled: Bool) {
@@ -99,6 +102,14 @@ final class WindowRegistry: ReaderWindowDriving {
         setAlwaysOnTop(preferences.alwaysOnTop)
         setAppPresence(preferences.appPresenceMode)
         applyAppearance(preferences.windowAppearance)
+    }
+
+    private func applyContentCornerRadius(_ radius: CGFloat, to window: NSWindow) {
+        guard let contentView = window.contentView else { return }
+        contentView.wantsLayer = true
+        contentView.layer?.cornerRadius = radius
+        contentView.layer?.cornerCurve = .continuous
+        contentView.layer?.masksToBounds = radius > 0
     }
 
     static func revalidatedFrame(_ frame: CGRect, visibleFrames: [CGRect]) -> CGRect {

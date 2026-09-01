@@ -50,6 +50,24 @@ final class ReaderDragRegionTests: XCTestCase {
         XCTAssertTrue(NSCursor.current === NSCursor.arrow)
     }
 
+    func testDragViewOwnsHoverTrackingPolicy() throws {
+        let enteredMethod = try XCTUnwrap(
+            class_getInstanceMethod(ReaderDragView.self, #selector(NSResponder.mouseEntered(with:)))
+        )
+        let exitedMethod = try XCTUnwrap(
+            class_getInstanceMethod(ReaderDragView.self, #selector(NSResponder.mouseExited(with:)))
+        )
+        let baseEnteredMethod = try XCTUnwrap(
+            class_getInstanceMethod(NSView.self, #selector(NSResponder.mouseEntered(with:)))
+        )
+        let baseExitedMethod = try XCTUnwrap(
+            class_getInstanceMethod(NSView.self, #selector(NSResponder.mouseExited(with:)))
+        )
+
+        XCTAssertNotEqual(method_getImplementation(enteredMethod), method_getImplementation(baseEnteredMethod))
+        XCTAssertNotEqual(method_getImplementation(exitedMethod), method_getImplementation(baseExitedMethod))
+    }
+
     private func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow) throws -> NSEvent {
         try XCTUnwrap(NSEvent.mouseEvent(
             with: type,
