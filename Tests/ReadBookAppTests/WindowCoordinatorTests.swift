@@ -25,7 +25,11 @@ final class WindowCoordinatorTests: XCTestCase {
     func testRegistryAppliesAppearanceAndPointerPassThrough() {
         let registry = WindowRegistry()
         let window = makeWindow()
-        registry.register(window, titlebarState: ReaderTitlebarState())
+        registry.register(
+            window,
+            titlebarState: ReaderTitlebarState(),
+            chrome: ReaderChromeController()
+        )
 
         XCTAssertEqual(window.toolbar?.identifier, "ReadBook.ReaderToolbar")
         XCTAssertEqual(window.toolbarStyle, .unifiedCompact)
