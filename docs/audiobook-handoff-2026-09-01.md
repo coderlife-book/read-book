@@ -1,17 +1,17 @@
 # ReadBook 听书功能交接文档
 
-更新时间：2026-09-01
+更新时间：2026-09-01（会话二收尾）
 
 ## 当前状态
 
 - 工作树：`/tmp/readbook-worktrees/audiobook-design`
 - 分支：`codex/audiobook-design`
 - 远端：`origin/codex/audiobook-design`
-- 当前提交：`cfd5a48`
+- 当前提交：`9d57eee`
 - 工作树状态：干净
 - PR：[coderlife-book/read-book#17](https://github.com/coderlife-book/read-book/pull/17)
-- CI：[macOS CI #33494592320](https://github.com/coderlife-book/read-book/actions/runs/33494592320)
-- CI 结果：`test-build-package` 成功；PR 场景下 `publish` 按设计跳过
+- CI：[macOS CI #33495319568](https://github.com/coderlife-book/read-book/actions/runs/33495319568)
+- CI 结果：最新 head `d671974` 上 `test-build-package` 成功；PR 场景下 `publish` 按设计跳过
 
 ## 已完成
 
@@ -37,6 +37,8 @@
 - 句子播放完成自动推进
 - 队列低水位 10、目标 20、硬上限 30
 - 换书、删除当前书、退出 App 时停止听书任务
+- 分页模式当前句离开本页时自动以句首重新分页
+- 首次下载后保留“从此处开始听”的选区，下载完成自动从选区起播
 
 ### 模型策略
 
@@ -46,6 +48,9 @@
 - 缺失模型才显示下载确认
 - 下载支持 partial 和断点续传
 - 模型权重不进入 Git、不打进 App
+- 设置页展示 TTS/对齐模型的状态、来源链接、revision、许可证和磁盘占用
+- 设置页可删除 ReadBook 管理的模型，删除前停止播放并释放控制器
+- 下载弹窗按实际缺失容量提示（已有 TTS 时只显示对齐模型体积）
 
 ## 验证证据
 
@@ -57,37 +62,43 @@ swift build
 git diff --check
 ```
 
-结果：`swift test` 共 112 个测试，0 失败，4 个显式跳过；`swift build` 成功。
+结果：`swift test` 共 127 个测试，0 失败，4 个显式跳过；`swift build` 成功。
 
 显式跳过的是本地真实模型测试，需要设置 `READBOOK_RUN_SPEECH_MODEL_TESTS=1` 和两个模型目录环境变量。
 
-本地 Release 包已生成：
+真实模型测试（显式启用）全部通过：
+
+```text
+READBOOK_RUN_SPEECH_MODEL_TESTS=1 READBOOK_TTS_MODEL_DIR=... READBOOK_ALIGNER_MODEL_DIR=... \
+  swift test --filter SpeechModelCompatibilityTests
+```
+
+覆盖 TTS 生成、ForcedAligner 对齐、以及 Pipeline 整块准备。
+
+本地 Release 包已生成并通过签名校验：
 
 ```text
 /tmp/readbook-worktrees/audiobook-design/dist/ReadBook.app
 ```
 
+`codesign --verify --deep --strict --verbose=4 dist/ReadBook.app` 通过；
+包内含 `Contents/MacOS/mlx.metallib`（MLX Metal 内核库），不含模型权重。
+
 注意：当前打包脚本生成的是 ad-hoc 签名 App，不包含约 3.8 GB 模型；首次体验需在 App 内按需下载，或确保本机已有固定 revision 的模型快照。
 
 ## 当前已知问题 / 未完成项
 
-1. 设置页尚未加入完整的“模型状态、来源、revision、许可证、删除模型”界面。
-2. 选区浮层目前已接入功能动作，但还没有独立的 `SpeechSelectionPopover` AppKit 组件；当前实现是 SwiftUI popover。
-3. 首次下载后从选区起播的“保存选区、下载完成后恢复原选区”流程还需要补完整；已有模型时精确选区起播正常。
-4. 默认 `AppModel` 使用惰性 `AudiobookController`，目前没有把模型管理器独立注入到 AppModel 测试夹具中。
-5. `PagedTextView` 的通知闭包仍有 Swift 6 AppKit actor warning，需要后续清理为显式 `Task { @MainActor in ... }`。
-6. CI 没有上传 Artifact，PR workflow 只验证构建；正式安装包需要合并到 `main` 后由发布 Job 生成，或本地使用 `dist/ReadBook.app`。
-7. 尚未完成真实窗口人工验收：试听、句子高亮随播放移动、暂停/倍速、分页自动跟随、选区浮层定位。
+1. 选区浮层仍是 SwiftUI popover，尚未替换为独立的 `SpeechSelectionPopover` AppKit 组件；功能动作已接通。
+2. CI 没有上传 Artifact，PR workflow 只验证构建；正式安装包需要合并到 `main` 后由发布 Job 生成，或本地使用 `dist/ReadBook.app`。
+3. 尚未完成真实窗口人工验收：试听、句子高亮随播放移动、暂停/倍速、分页自动跟随、选区浮层定位。
 
 ## 新会话建议顺序
 
 1. 先打开本文件和 `docs/superpowers/specs/2026-09-01-audiobook-listening-design.md`、`docs/superpowers/plans/2026-09-01-audiobook-listening.md`。
 2. 检查 PR #17 的最新 CI，不要重复创建 PR。
-3. 先修正真实模型打包/运行所需的 `mlx.metallib` 复制问题，并用本机模型执行真实 Pipeline 测试。
-4. 完成设置页模型管理和删除流程测试。
-5. 补选区下载后恢复、分页高亮自动翻页、AppModel 生命周期测试。
-6. 在 macOS 实际窗口中试听用户给出的文本，确认 Serena 声音、去沙感、速度和高亮同步。
-7. 最后执行：
+3. 在 macOS 实际窗口中试听用户给出的文本，确认 Serena 声音、去沙感、速度和高亮同步，并验收分页自动翻页与下载进度弹窗。
+4. 如需要，把选区浮层替换为原生 AppKit `SpeechSelectionPopover`。
+5. 最后执行：
 
 ```bash
 swift test
@@ -96,7 +107,7 @@ Scripts/build-app.sh
 codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 ```
 
-除非用户明确要求，不要推送 `main`、合并 PR、创建 tag 或发布 Release。
+除非用户明确要求，不要推送远端、合并 PR、创建 tag 或发布 Release。当前分支比 `origin/codex/audiobook-design` 领先 3 个未推送提交（`935e122`、`812942d`、`9d57eee`）。
 
 ## 重要实现文件
 
