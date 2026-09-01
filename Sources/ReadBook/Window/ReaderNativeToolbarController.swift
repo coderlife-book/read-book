@@ -12,9 +12,22 @@ extension NSToolbarItem.Identifier {
 @MainActor
 final class ReaderNativeToolbarController: NSObject, NSToolbarDelegate {
     private var state: ReaderTitlebarState?
+    private var onControlHover: (Bool) -> Void = { _ in }
+    private weak var trackingView: ReaderTitlebarTrackingView?
 
-    func install(on window: NSWindow, state: ReaderTitlebarState) {
+    func install(
+        on window: NSWindow,
+        state: ReaderTitlebarState,
+        chrome: ReaderChromeController? = nil
+    ) {
         self.state = state
+        if let chrome {
+            onControlHover = { [weak chrome] inside in
+                chrome?.setControlInteractionHeld(inside)
+            }
+        } else {
+            onControlHover = { _ in }
+        }
 
         let toolbar = NSToolbar(identifier: "ReadBook.ReaderToolbar")
         toolbar.delegate = self
@@ -24,6 +37,13 @@ final class ReaderNativeToolbarController: NSObject, NSToolbarDelegate {
 
         window.toolbarStyle = .unifiedCompact
         window.toolbar = toolbar
+
+        if let chrome {
+            installTrackingView(on: window, chrome: chrome)
+        } else {
+            trackingView?.removeFromSuperview()
+            trackingView = nil
+        }
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -54,7 +74,10 @@ final class ReaderNativeToolbarController: NSObject, NSToolbarDelegate {
                 identifier: itemIdentifier,
                 label: "书库",
                 state: state,
-                rootView: AnyView(ReaderTitlebarLibraryItemView(state: state))
+                rootView: AnyView(ReaderTitlebarLibraryItemView(
+                    state: state,
+                    onControlHover: onControlHover
+                ))
             )
         case .readBookTitle:
             let item = NSToolbarItem(itemIdentifier: itemIdentifier)
@@ -71,21 +94,30 @@ final class ReaderNativeToolbarController: NSObject, NSToolbarDelegate {
                 identifier: itemIdentifier,
                 label: "阅读模式",
                 state: state,
-                rootView: AnyView(ReaderTitlebarModeItemView(state: state))
+                rootView: AnyView(ReaderTitlebarModeItemView(
+                    state: state,
+                    onControlHover: onControlHover
+                ))
             )
         case .readBookPin:
             return buttonItem(
                 identifier: itemIdentifier,
                 label: "置顶",
                 state: state,
-                rootView: AnyView(ReaderTitlebarPinItemView(state: state))
+                rootView: AnyView(ReaderTitlebarPinItemView(
+                    state: state,
+                    onControlHover: onControlHover
+                ))
             )
         case .readBookSettings:
             return buttonItem(
                 identifier: itemIdentifier,
                 label: "设置",
                 state: state,
-                rootView: AnyView(ReaderTitlebarSettingsItemView(state: state))
+                rootView: AnyView(ReaderTitlebarSettingsItemView(
+                    state: state,
+                    onControlHover: onControlHover
+                ))
             )
         default:
             return nil
@@ -106,5 +138,28 @@ final class ReaderNativeToolbarController: NSObject, NSToolbarDelegate {
         host.frame = NSRect(x: 0, y: 0, width: 30, height: 30)
         item.view = host
         return item
+    }
+
+    private func installTrackingView(
+        on window: NSWindow,
+        chrome: ReaderChromeController
+    ) {
+        trackingView?.removeFromSuperview()
+        guard let container = window.standardWindowButton(.closeButton)?.superview else {
+            return
+        }
+
+        let tracker = ReaderTitlebarTrackingView(
+            onEnter: { [weak chrome] in
+                chrome?.topZoneChanged(inside: true)
+            },
+            onExit: { [weak chrome] in
+                chrome?.topZoneChanged(inside: false)
+            }
+        )
+        tracker.frame = container.bounds
+        tracker.autoresizingMask = [.width, .height]
+        container.addSubview(tracker, positioned: .below, relativeTo: nil)
+        trackingView = tracker
     }
 }
