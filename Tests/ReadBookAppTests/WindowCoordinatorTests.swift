@@ -17,7 +17,9 @@ final class WindowCoordinatorTests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.fullSizeContentView))
         XCTAssertEqual(window.titleVisibility, .hidden)
         XCTAssertTrue(window.titlebarAppearsTransparent)
+        XCTAssertEqual(window.titlebarSeparatorStyle, .none)
         XCTAssertFalse(window.isMovableByWindowBackground)
+        XCTAssertNil(window.toolbar)
     }
 
     @MainActor
