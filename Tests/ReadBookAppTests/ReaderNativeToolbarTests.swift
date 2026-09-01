@@ -13,7 +13,7 @@ final class ReaderNativeToolbarTests: XCTestCase {
 
         controller.install(on: window, state: state)
 
-        XCTAssertEqual(window.toolbar?.identifier.rawValue, "ReadBook.ReaderToolbar")
+        XCTAssertEqual(window.toolbar?.identifier, "ReadBook.ReaderToolbar")
         XCTAssertFalse(window.toolbar?.allowsUserCustomization ?? true)
         XCTAssertFalse(window.toolbar?.autosavesConfiguration ?? true)
         XCTAssertEqual(window.toolbarStyle, .unifiedCompact)
