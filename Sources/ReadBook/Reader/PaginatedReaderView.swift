@@ -92,6 +92,21 @@ struct PaginatedReaderView: View {
             .onChange(of: proxy.size) { _, _ in
                 layout(width: innerWidth, height: innerHeight)
             }
+            .onChange(of: highlightedRange) { _, newRange in
+                guard let newRange, let currentRange else { return }
+                if let next = PagedAudiobookNavigation.pageIfNeeded(
+                    currentRange: currentRange,
+                    highlightedRange: newRange,
+                    text: text as NSString,
+                    width: innerWidth,
+                    height: innerHeight,
+                    style: style,
+                    engine: engine
+                ) {
+                    self.currentRange = next
+                    onPositionChanged(BookPosition(utf16Offset: next.location))
+                }
+            }
         }
     }
 

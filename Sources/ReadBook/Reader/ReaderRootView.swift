@@ -121,12 +121,30 @@ struct ReaderRootView: View {
             isPresented: $model.isAudiobookDownloadPresented,
             titleVisibility: .visible
         ) {
-            Button("下载并开始听书") {
-                Task { await model.downloadAudiobookModelsAndStart() }
-            }
+            Button("下载并开始听书") { model.beginAudiobookDownload() }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("首次听书会下载约 3.8 GB 的本地模型。模型仅在此设备运行，不会上传小说内容。")
+            Text(model.audiobookDownloadMessage)
+        }
+        .sheet(isPresented: $model.isAudiobookDownloading) {
+            VStack(spacing: 14) {
+                Text("正在下载听书模型")
+                    .font(.headline)
+                if let fraction = model.audiobookDownloadFraction {
+                    ProgressView(value: fraction)
+                } else {
+                    ProgressView()
+                }
+                Text("下载完成后将自动开始听书。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button("取消") { model.cancelAudiobookDownload() }
+                }
+            }
+            .padding(20)
+            .frame(width: 320)
         }
         .onChange(of: showLibrary) { _, presented in
             runtime.chrome.setControlInteractionHeld(presented)

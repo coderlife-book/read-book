@@ -24,6 +24,9 @@ final class SpeechModelManager {
     private(set) var state: SpeechModelState = .notInstalled(
         missingBytes: SpeechModelCatalog.all.reduce(0) { $0 + $1.approximateBytes }
     )
+    private(set) var installedKinds: Set<SpeechModelKind> = []
+    private(set) var downloadingKind: SpeechModelKind?
+    private(set) var downloadProgress: SpeechDownloadProgress?
 
     init(
         locator: SpeechModelLocator,
@@ -40,7 +43,9 @@ final class SpeechModelManager {
     func discover() async {
         state = .discovering
         do {
-            state = state(for: try locator.locateAll())
+            let locations = try locator.locateAll()
+            updateInstalledKinds(locations)
+            state = state(for: locations)
         } catch {
             state = .failed("听书模型校验失败。")
         }
@@ -50,13 +55,21 @@ final class SpeechModelManager {
         state = .discovering
         do {
             var locations = try locator.locateAll()
+            updateInstalledKinds(locations)
             for descriptor in SpeechModelCatalog.all {
                 let isPresent = descriptor.kind == .tts ? locations.tts != nil : locations.aligner != nil
                 guard !isPresent else { continue }
+                downloadingKind = descriptor.kind
                 _ = try await downloader.download(descriptor, to: modelsRoot) { [weak self] progress in
-                    Task { @MainActor in self?.state = .downloading(progress) }
+                    Task { @MainActor in
+                        self?.state = .downloading(progress)
+                        self?.downloadProgress = progress
+                    }
                 }
+                downloadingKind = nil
+                downloadProgress = nil
                 locations = try locator.locateAll()
+                updateInstalledKinds(locations)
             }
             state = state(for: locations)
         } catch is CancellationError {
@@ -71,9 +84,18 @@ final class SpeechModelManager {
         if FileManager.default.fileExists(atPath: modelsRoot.path) {
             try FileManager.default.removeItem(at: modelsRoot)
         }
+        installedKinds = []
+        downloadingKind = nil
+        downloadProgress = nil
         state = .notInstalled(
             missingBytes: SpeechModelCatalog.all.reduce(0) { $0 + $1.approximateBytes }
         )
+    }
+
+    private func updateInstalledKinds(_ locations: SpeechModelLocations) {
+        installedKinds = []
+        if locations.tts != nil { installedKinds.insert(.tts) }
+        if locations.aligner != nil { installedKinds.insert(.aligner) }
     }
 
     private func state(for locations: SpeechModelLocations) -> SpeechModelState {

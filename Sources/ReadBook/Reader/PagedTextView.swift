@@ -73,8 +73,10 @@ struct PagedTextView: NSViewRepresentable {
                 object: view,
                 queue: .main
             ) { [weak self] _ in
-                guard let self, let range = self.view?.selectedRange(), range.length > 0 else { return }
-                self.onSelectionChanged(range)
+                Task { @MainActor in
+                    guard let self, let range = self.view?.selectedRange(), range.length > 0 else { return }
+                    self.onSelectionChanged(range)
+                }
             }
         }
 
