@@ -85,6 +85,10 @@ codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 - 只有 `main` 的 `test-build-package` 成功后，`publish` Job 才能运行。
 - `publish` 使用 App 内版本号创建不可变的 `v<版本号>` tag 和 GitHub Release；已有 tag 不覆盖。
 
+这里的两次 CI 不是发布两次：`pull_request -> main` 负责验证候选代码，`push -> main` 才对合并后的提交执行正式打包和发布。文档-only PR（仅修改 `AGENTS.md`、README 或 `docs/`）保留成功的 `test-build-package` 检查但跳过 Swift 测试、编译、打包和签名；代码或 workflow 变更仍完整验证。合并到 `main` 后始终完整构建，确保正式产物来自最终的 `main` 提交。
+
+Release Notes 的 Bash 兼容性：不要在 `--notes "...\n..."` 中依赖 `\n` 生成换行。Bash 的普通双引号不会解释 `\n`，GitHub 页面会显示字面量 `\n`。应使用 heredoc 写入临时 Markdown 文件，再通过 `gh release create ... --notes-file release-notes.md` 发布。
+
 普通功能 PR：
 
 - 不修改 `Scripts/build-app.sh` 中的版本号和 Build Number。
