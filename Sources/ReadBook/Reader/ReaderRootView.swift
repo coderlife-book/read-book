@@ -8,7 +8,6 @@ struct ReaderRootView: View {
     let runtime: AppRuntime
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var showLibrary = false
     @State private var selectedRecoveryEncoding: ImportedTextEncoding = .gb18030
 
     var body: some View {
@@ -19,7 +18,6 @@ struct ReaderRootView: View {
         )
         let style = readerStyle
         let interactiveStealth = runtime.windowState.state == .interactiveStealth
-        let topVisible = runtime.chrome.topVisible || interactiveStealth
         let bottomVisible = runtime.chrome.bottomVisible || interactiveStealth
 
         ZStack {
@@ -35,27 +33,6 @@ struct ReaderRootView: View {
                     }
 
                 VStack(spacing: 0) {
-                    if topVisible {
-                        ReaderToolbar(
-                            title: model.currentBook?.title ?? "ReadBook",
-                            readingMode: model.readingMode,
-                            alwaysOnTop: model.preferences.alwaysOnTop,
-                            onLibrary: {
-                                runtime.chrome.setControlInteractionHeld(true)
-                                showLibrary.toggle()
-                            },
-                            onModeChange: { model.setMode($0) },
-                            onPin: {
-                                model.updatePreferences { $0.alwaysOnTop.toggle() }
-                                NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
-                            }
-                        )
-                        .foregroundStyle(Color(nsColor: palette.text))
-                        .background(controlScrim(palette: palette))
-                        .onHover { runtime.chrome.setControlInteractionHeld($0) }
-                        .transition(.opacity)
-                    }
-
                     Spacer(minLength: 0)
 
                     if bottomVisible {
@@ -77,10 +54,6 @@ struct ReaderRootView: View {
                 }
 
                 VStack(spacing: 0) {
-                    Color.clear
-                        .frame(height: 20)
-                        .contentShape(Rectangle())
-                        .onHover { runtime.chrome.topZoneChanged(inside: $0) }
                     Spacer(minLength: 0)
                     Color.clear
                         .frame(height: 16)
@@ -94,11 +67,29 @@ struct ReaderRootView: View {
         .contentShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.topVisible)
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
-        .popover(isPresented: $showLibrary, arrowEdge: .top) {
+        .popover(
+            isPresented: Binding(
+                get: { runtime.titlebar.isLibraryPresented },
+                set: { runtime.titlebar.isLibraryPresented = $0 }
+            ),
+            arrowEdge: .top
+        ) {
             LibraryPopoverView(model: model)
         }
-        .onChange(of: showLibrary) { _, presented in
+        .onChange(of: runtime.titlebar.isLibraryPresented) { _, presented in
             runtime.chrome.setControlInteractionHeld(presented)
+        }
+        .onChange(of: model.currentBook?.title) { _, _ in
+            syncTitlebarState()
+        }
+        .onChange(of: model.readingMode) { _, _ in
+            syncTitlebarState()
+        }
+        .onChange(of: model.preferences.alwaysOnTop) { _, _ in
+            syncTitlebarState()
+        }
+        .onChange(of: runtime.chrome.topVisible) { _, _ in
+            syncTitlebarState()
         }
         .onChange(of: runtime.windowState.state) { _, state in
             switch state {
@@ -109,6 +100,7 @@ struct ReaderRootView: View {
             case .normal:
                 runtime.chrome.hideAllImmediately()
             }
+            syncTitlebarState()
         }
         .fileImporter(
             isPresented: $model.isImportPresented,
@@ -148,7 +140,10 @@ struct ReaderRootView: View {
         )) {
             encodingRecoverySheet
         }
-        .task { await model.start() }
+        .task {
+            await model.start()
+            syncTitlebarState()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .inactive || phase == .background {
                 Task { await model.session.flush() }
@@ -161,6 +156,26 @@ struct ReaderRootView: View {
 
     private var isPointerPassThrough: Bool {
         runtime.windowState.state == .floatingText && !runtime.windowState.lockInteractive
+    }
+
+    @MainActor
+    private func syncTitlebarState() {
+        runtime.titlebar.title = model.currentBook?.title ?? "ReadBook"
+        runtime.titlebar.readingMode = model.readingMode
+        runtime.titlebar.alwaysOnTop = model.preferences.alwaysOnTop
+        runtime.titlebar.isVisible = runtime.chrome.topVisible
+            || runtime.windowState.state == .interactiveStealth
+        runtime.titlebar.onModeChange = { mode in
+            model.setMode(mode)
+        }
+        runtime.titlebar.onPin = {
+            model.updatePreferences { $0.alwaysOnTop.toggle() }
+            runtime.applyPreferences(model.preferences)
+            NotificationCenter.default.post(
+                name: .readBookWindowPreferencesChanged,
+                object: nil
+            )
+        }
     }
 
     @ViewBuilder
