@@ -7,7 +7,7 @@ import ReadBookCore
 final class AppModel {
     let repository: LibraryRepository
     let session: ReaderSession
-    let audiobookController: AudiobookController?
+    private(set) var audiobookController: AudiobookController?
     private let preferencesStore: PreferencesStore
 
     var books: [BookMetadata] = []
@@ -16,6 +16,8 @@ final class AppModel {
     var isImportPresented = false
     var encodingRecoveryURL: URL?
     var sessionRevision = 0
+    var isAudiobookDownloadPresented = false
+    var isAudiobookDownloading = false
 
     init(
         repository: LibraryRepository = LibraryRepository(),
@@ -90,6 +92,69 @@ final class AppModel {
     func updatePosition(_ position: BookPosition) {
         session.updatePosition(position)
         sessionRevision &+= 1
+    }
+
+    func startAudiobook() async {
+        guard currentBook != nil else { return }
+        if let audiobookController {
+            switch audiobookController.state {
+            case .playing, .paused:
+                await audiobookController.togglePlayback()
+            case .idle, .preparing, .buffering, .failed:
+                await audiobookController.startFromReadingPosition(text: text, position: position)
+            }
+            return
+        }
+
+        let paths = AppPaths()
+        let locator = SpeechModelLocator(
+            ownedRoot: paths.modelsRoot,
+            externalHubRoots: [
+                FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent(".cache/huggingface/hub", isDirectory: true)
+            ]
+        )
+        guard let locations = try? locator.locateAll(), locations.isReady else {
+            isAudiobookDownloadPresented = true
+            return
+        }
+        configureAudiobook(locations)
+        await audiobookController?.startFromReadingPosition(text: text, position: position)
+    }
+
+    func downloadAudiobookModelsAndStart() async {
+        guard !isAudiobookDownloading else { return }
+        isAudiobookDownloading = true
+        defer { isAudiobookDownloading = false }
+
+        let paths = AppPaths()
+        let locator = SpeechModelLocator(
+            ownedRoot: paths.modelsRoot,
+            externalHubRoots: []
+        )
+        do {
+            let downloader = SpeechModelDownloader()
+            var locations = try locator.locateAll()
+            for descriptor in SpeechModelCatalog.all {
+                let present = descriptor.kind == .tts ? locations.tts != nil : locations.aligner != nil
+                guard !present else { continue }
+                _ = try await downloader.download(descriptor, to: paths.modelsRoot) { _ in }
+                locations = try locator.locateAll()
+            }
+            guard locations.isReady else { throw SpeechPipelineError.missingTTSModel }
+            configureAudiobook(locations)
+            await audiobookController?.startFromReadingPosition(text: text, position: position)
+        } catch {
+            lastErrorMessage = "听书模型下载失败，请稍后重试。"
+        }
+    }
+
+    private func configureAudiobook(_ locations: SpeechModelLocations) {
+        let controller = AudiobookController(preparer: MLXSpeechPipeline(locations: locations), playback: SpeechPlaybackController())
+        controller.onPositionChange = { [weak self] position in
+            self?.updatePosition(position)
+        }
+        audiobookController = controller
     }
 
     func jump(to chapter: Chapter) {

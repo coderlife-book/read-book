@@ -8,6 +8,28 @@ struct ReaderToolbar: View {
     let onLibrary: () -> Void
     let onModeChange: (ReadingMode) -> Void
     let onPin: () -> Void
+    let audiobookState: SpeechPlaybackState?
+    let onAudiobookToggle: () -> Void
+
+    init(
+        title: String,
+        readingMode: ReadingMode,
+        alwaysOnTop: Bool,
+        onLibrary: @escaping () -> Void,
+        onModeChange: @escaping (ReadingMode) -> Void,
+        onPin: @escaping () -> Void,
+        audiobookState: SpeechPlaybackState? = nil,
+        onAudiobookToggle: @escaping () -> Void = {}
+    ) {
+        self.title = title
+        self.readingMode = readingMode
+        self.alwaysOnTop = alwaysOnTop
+        self.onLibrary = onLibrary
+        self.onModeChange = onModeChange
+        self.onPin = onPin
+        self.audiobookState = audiobookState
+        self.onAudiobookToggle = onAudiobookToggle
+    }
 
     var body: some View {
         ZStack {
@@ -37,6 +59,13 @@ struct ReaderToolbar: View {
                     )
                 }
                 .help(readingMode == .paginated ? "切换到滚动阅读" : "切换到分页阅读")
+
+                if let audiobookState {
+                    Button(action: onAudiobookToggle) {
+                        ToolbarIconLabel(systemName: audiobookState == .playing ? "pause.fill" : "headphones")
+                    }
+                    .help(audiobookState == .playing ? "暂停听书" : "开始听书")
+                }
 
                 Button(action: onPin) {
                     ToolbarIconLabel(systemName: alwaysOnTop ? "pin.fill" : "pin")

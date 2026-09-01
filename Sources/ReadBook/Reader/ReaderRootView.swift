@@ -37,24 +37,7 @@ struct ReaderRootView: View {
 
             VStack(spacing: 0) {
                 if topVisible {
-                    ReaderToolbar(
-                        title: model.currentBook?.title ?? "ReadBook",
-                        readingMode: model.readingMode,
-                        alwaysOnTop: model.preferences.alwaysOnTop,
-                        onLibrary: {
-                            runtime.chrome.setControlInteractionHeld(true)
-                            showLibrary.toggle()
-                        },
-                        onModeChange: { model.setMode($0) },
-                        onPin: {
-                            model.updatePreferences { $0.alwaysOnTop.toggle() }
-                            NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
-                        }
-                    )
-                    .foregroundStyle(Color(nsColor: palette.text))
-                    .background(controlScrim(palette: palette))
-                    .onHover { runtime.chrome.setControlInteractionHeld($0) }
-                    .transition(.opacity)
+                    readerToolbar(palette: palette)
                 }
 
                 Spacer(minLength: 0)
@@ -114,6 +97,18 @@ struct ReaderRootView: View {
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
         .popover(isPresented: $showLibrary, arrowEdge: .top) {
             LibraryPopoverView(model: model)
+        }
+        .confirmationDialog(
+            "下载听书模型",
+            isPresented: $model.isAudiobookDownloadPresented,
+            titleVisibility: .visible
+        ) {
+            Button("下载并开始听书") {
+                Task { await model.downloadAudiobookModelsAndStart() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("首次听书会下载约 3.8 GB 的本地模型。模型仅在此设备运行，不会上传小说内容。")
         }
         .onChange(of: showLibrary) { _, presented in
             runtime.chrome.setControlInteractionHeld(presented)
@@ -222,6 +217,29 @@ struct ReaderRootView: View {
                 Color.clear
             }
         }
+    }
+
+    private func readerToolbar(palette: ThemePalette) -> some View {
+        ReaderToolbar(
+            title: model.currentBook?.title ?? "ReadBook",
+            readingMode: model.readingMode,
+            alwaysOnTop: model.preferences.alwaysOnTop,
+            onLibrary: {
+                runtime.chrome.setControlInteractionHeld(true)
+                showLibrary.toggle()
+            },
+            onModeChange: { model.setMode($0) },
+            onPin: {
+                model.updatePreferences { $0.alwaysOnTop.toggle() }
+                NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
+            },
+            audiobookState: model.currentBook == nil ? nil : model.audiobookController?.state ?? .idle,
+            onAudiobookToggle: { Task { await model.startAudiobook() } }
+        )
+        .foregroundStyle(Color(nsColor: palette.text))
+        .background(controlScrim(palette: palette))
+        .onHover { runtime.chrome.setControlInteractionHeld($0) }
+        .transition(.opacity)
     }
 
     private func controlScrim(palette: ThemePalette) -> some View {
