@@ -31,7 +31,7 @@ final class AppRuntime {
     }
 
     func register(window: NSWindow) {
-        windowRegistry.register(window)
+        windowRegistry.register(window, titlebarState: titlebar)
         applyPreferences(lastPreferences)
     }
 
