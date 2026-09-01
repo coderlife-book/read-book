@@ -7,11 +7,19 @@ final class WindowRegistry: ReaderWindowDriving {
     private let coordinator = WindowCoordinator()
     private let toolbarController = ReaderNativeToolbarController()
 
-    func register(_ window: NSWindow, titlebarState: ReaderTitlebarState) {
+    func register(
+        _ window: NSWindow,
+        titlebarState: ReaderTitlebarState,
+        chrome: ReaderChromeController
+    ) {
         guard readerWindow !== window else { return }
         readerWindow = window
         coordinator.configure(window)
-        toolbarController.install(on: window, state: titlebarState)
+        toolbarController.install(
+            on: window,
+            state: titlebarState,
+            chrome: chrome
+        )
     }
 
     var readerFrameInScreen: CGRect? {
