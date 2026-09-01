@@ -17,38 +17,69 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Determine change scope
+        id: change_scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          needs_build=false
+          while IFS= read -r file; do
+            case "$file" in
+              AGENTS.md|README.md|docs/*) ;;
+              *) needs_build=true; break ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")
+          echo "needs_build=$needs_build" >> "$GITHUB_OUTPUT"
+
+      - name: Documentation-only change
+        if: steps.change_scope.outputs.needs_build != 'true'
+        run: echo "Documentation-only change; skipping build and package steps."
+
       - name: Toolchain
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           sw_vers
           xcodebuild -version
           swift --version
 
       - name: Test
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: swift test
 
       - name: Build
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: swift build
 
       - name: Package local app bundle
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: Scripts/build-app.sh
 
       - name: Verify packaged app signature
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           codesign -dv --verbose=4 dist/ReadBook.app
           codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 
       - name: Verify branding
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           test -s dist/ReadBook.app/Contents/Resources/ReadBook.icns
           test -s dist/ReadBook.app/Contents/Resources/ReadBookMenuTemplate.png
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' dist/ReadBook.app/Contents/Info.plist)" = "ReadBook.icns"
 
       - name: Gatekeeper assessment
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           spctl --assess --type execute --verbose=4 dist/ReadBook.app || true
 
       - name: Create archive and checksum
         id: package_meta
+        if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/ReadBook.app/Contents/Info.plist)"
           test -n "$VERSION"
@@ -59,6 +90,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload installable preview
+        if: steps.change_scope.outputs.needs_build == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ReadBook-v${{ steps.package_meta.outputs.version }}-${{ github.sha }}
@@ -97,10 +129,21 @@ jobs:
             exit 0
           fi
 
+          cat > release-notes.md <<EOF
+          ReadBook $TAG 窗口交互与自动更新可靠性修复版本。
+
+          - 修复阅读窗口顶部拖动区域和工具栏按钮光标交互
+          - 保持原生 Resize，统一卡片圆角并消除阴影月牙
+          - 增加更新包校验状态、阅读进度保存超时保护和安装失败重启
+          - 补充窗口与自动更新回归测试
+
+          说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
+          EOF
+
           gh release create "$TAG" \
             dist/ReadBook-macOS.zip \
             dist/ReadBook-macOS.zip.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 窗口交互与自动更新可靠性修复版本。\n\n- 修复阅读窗口顶部拖动区域和工具栏按钮光标交互\n- 保持原生 Resize，统一卡片圆角并消除阴影月牙\n- 增加更新包校验状态、阅读进度保存超时保护和安装失败重启\n- 补充窗口与自动更新回归测试\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes-file release-notes.md
