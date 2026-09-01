@@ -45,6 +45,9 @@ actor MLXSpeechPipeline: SpeechPreparing {
                 transcriptUTF16Offset: block.utf16Range.lowerBound,
                 sentences: block.sentences
             )
+            guard SpeechAlignmentValidation.fitsInAudio(mapped, audioFrameCount: samples.count) else {
+                return try await prepareSentenceFallback(block)
+            }
             return PreparedSpeechBlock(sentences: mapped.map { aligned in
                 let lower = min(max(Int(aligned.frameRange.lowerBound), 0), samples.count)
                 let upper = min(max(Int(aligned.frameRange.upperBound), lower), samples.count)
@@ -99,4 +102,23 @@ actor MLXSpeechPipeline: SpeechPreparing {
 enum SpeechPipelineError: Error, Equatable {
     case missingTTSModel
     case missingAlignerModel
+}
+
+enum SpeechAlignmentValidation {
+    /// 对齐结果必须落在真实音频范围内；时间戳明显越过音频末尾时
+    /// 视为该块对齐失败，由调用方回退为逐句生成。
+    static func fitsInAudio(
+        _ mapped: [AlignedSentence],
+        audioFrameCount: Int
+    ) -> Bool {
+        guard audioFrameCount > 0 else { return false }
+        let tolerance = max(Int64(audioFrameCount) / 50, 1)
+        let limit = Int64(audioFrameCount) + tolerance
+        return mapped.allSatisfy { sentence in
+            sentence.frameRange.lowerBound >= 0
+                && sentence.frameRange.lowerBound < Int64(audioFrameCount)
+                && sentence.frameRange.upperBound > sentence.frameRange.lowerBound
+                && sentence.frameRange.upperBound <= limit
+        }
+    }
 }

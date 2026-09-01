@@ -28,6 +28,14 @@ cp "$BRAND_DIR/ReadBook.icns" "$APP/Contents/Resources/ReadBook.icns"
 cp "$BRAND_DIR/ReadBookMenuTemplate.png" "$APP/Contents/Resources/ReadBookMenuTemplate.png"
 cp "$ROOT/DesignAssets/Tabler/LICENSE" "$APP/Contents/Resources/Licenses/Tabler/LICENSE"
 
+# MLX SwiftPM CLI 构建不产出 metallib，但运行时要求与可执行文件同目录。
+# 固定资源来自 DesignAssets/MLX/README.md 中锁定的 mlx-swift revision。
+if [[ ! -f "$ROOT/DesignAssets/MLX/mlx.metallib" ]]; then
+  echo "Missing DesignAssets/MLX/mlx.metallib; MLX audio would fail to load." >&2
+  exit 1
+fi
+cp "$ROOT/DesignAssets/MLX/mlx.metallib" "$APP/Contents/MacOS/mlx.metallib"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

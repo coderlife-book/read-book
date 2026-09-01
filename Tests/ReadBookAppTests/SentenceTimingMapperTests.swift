@@ -81,5 +81,50 @@ final class SentenceTimingMapperTests: XCTestCase {
             )
         )
     }
+
+    func testAlignmentWithinAudioPassesValidation() {
+        let mapped = [
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第一句", utf16Range: 0..<3),
+                frameRange: 0..<24_000
+            ),
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第二句", utf16Range: 3..<6),
+                frameRange: 24_000..<48_000
+            ),
+        ]
+
+        XCTAssertTrue(SpeechAlignmentValidation.fitsInAudio(mapped, audioFrameCount: 48_000))
+    }
+
+    func testAlignmentOverrunningAudioFailsValidation() {
+        let mapped = [
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第一句", utf16Range: 0..<3),
+                frameRange: 0..<24_000
+            ),
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第二句", utf16Range: 3..<6),
+                frameRange: 24_000..<100_000
+            ),
+        ]
+
+        XCTAssertFalse(SpeechAlignmentValidation.fitsInAudio(mapped, audioFrameCount: 48_000))
+    }
+
+    func testAlignmentStartingPastAudioEndFailsValidation() {
+        let mapped = [
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第一句", utf16Range: 0..<3),
+                frameRange: 0..<24_000
+            ),
+            AlignedSentence(
+                sentence: SpeechSentence(text: "第二句", utf16Range: 3..<6),
+                frameRange: 60_000..<70_000
+            ),
+        ]
+
+        XCTAssertFalse(SpeechAlignmentValidation.fitsInAudio(mapped, audioFrameCount: 48_000))
+    }
 }
 #endif
