@@ -58,6 +58,29 @@ final class UpdateControllerTests: XCTestCase {
         XCTAssertFalse(sut.isPresented)
     }
 
+    func testFlushForUpdateTimesOutInsteadOfWaitingForever() async {
+        let sut = UpdateController(
+            client: FakeUpdateReleaseClient(release: Self.release(version: "0.1.4")),
+            currentVersionProvider: { AppVersion("0.1.3")! },
+            flushTimeout: .milliseconds(50)
+        )
+        sut.configureLifecycle {
+            try? await Task.sleep(for: .seconds(5))
+        }
+
+        let start = ContinuousClock.now
+        do {
+            try await sut.flushForUpdate()
+            XCTFail("Expected update flush timeout")
+        } catch let error as UpdateControllerError {
+            XCTAssertEqual(error, .flushTimedOut)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertLessThan(start.duration(to: .now), .seconds(1))
+    }
+
     func testChecksumAcceptsKnownSHA256AndRejectsMismatch() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReadBookChecksumTests-\(UUID().uuidString)", isDirectory: true)

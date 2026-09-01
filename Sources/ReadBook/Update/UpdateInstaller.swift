@@ -100,8 +100,15 @@ final class UpdateInstaller {
         WAIT_TICKS=0
         MAX_WAIT_TICKS=150
 
+        reopen_current() {
+          if [ -e "$CURRENT" ]; then
+            /usr/bin/open "$CURRENT" >/dev/null 2>&1 || true
+          fi
+        }
+
         while /bin/kill -0 "$PID" 2>/dev/null; do
           if [ "$WAIT_TICKS" -ge "$MAX_WAIT_TICKS" ]; then
+            reopen_current
             exit 20
           fi
           /bin/sleep 0.2
@@ -110,20 +117,23 @@ final class UpdateInstaller {
 
         /bin/rm -rf "$BACKUP"
         if [ -e "$CURRENT" ]; then
-          /bin/mv "$CURRENT" "$BACKUP" || exit 21
+          /bin/mv "$CURRENT" "$BACKUP" || {
+            reopen_current
+            exit 21
+          }
         fi
 
         if /usr/bin/ditto "$CANDIDATE" "$CURRENT"; then
           /bin/rm -rf "$BACKUP"
-          /usr/bin/open "$CURRENT"
+          reopen_current
           exit 0
         fi
 
         /bin/rm -rf "$CURRENT"
         if [ -e "$BACKUP" ]; then
           /bin/mv "$BACKUP" "$CURRENT"
-          /usr/bin/open "$CURRENT"
         fi
+        reopen_current
         exit 22
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)

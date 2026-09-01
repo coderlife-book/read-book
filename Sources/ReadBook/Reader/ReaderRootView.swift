@@ -98,8 +98,18 @@ struct ReaderRootView: View {
             }
             .allowsHitTesting(!isPointerPassThrough)
         }
-        .clipShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: model.preferences.windowAppearance == .card ? 26 : 0, style: .continuous))
+        .overlay {
+            if model.preferences.windowAppearance == .card {
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(
+                        Color(nsColor: palette.text)
+                            .opacity(model.preferences.theme == .dark ? 0.24 : 0.14),
+                        lineWidth: 1
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.topVisible)
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
         .popover(isPresented: $showLibrary, arrowEdge: .top) {

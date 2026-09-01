@@ -9,8 +9,20 @@ enum UpdateState: Equatable {
     case upToDate(AppVersion)
     case available(GitHubRelease)
     case downloading(GitHubRelease)
+    case validating(GitHubRelease)
     case installing(AppVersion)
     case error(String)
+}
+
+enum UpdateControllerError: LocalizedError, Equatable {
+    case flushTimedOut
+
+    var errorDescription: String? {
+        switch self {
+        case .flushTimedOut:
+            "保存阅读进度超时，未开始替换当前应用。请稍后重试。"
+        }
+    }
 }
 
 @MainActor
@@ -25,6 +37,7 @@ final class UpdateController {
     private let currentAppURLProvider: () -> URL
     private var availableRelease: GitHubRelease?
     private var automaticCheckTask: Task<Void, Never>?
+    private let flushTimeout: Duration
     private var flushHandler: (@MainActor () async -> Void) = {}
     private var terminateHandler: (@MainActor () -> Void) = { NSApp.terminate(nil) }
 
@@ -35,12 +48,14 @@ final class UpdateController {
             let raw = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
             return AppVersion(raw) ?? AppVersion("0.0.0")!
         },
-        currentAppURLProvider: @escaping () -> URL = { Bundle.main.bundleURL }
+        currentAppURLProvider: @escaping () -> URL = { Bundle.main.bundleURL },
+        flushTimeout: Duration = .seconds(10)
     ) {
         self.client = client
         self.installer = installer
         self.currentVersionProvider = currentVersionProvider
         self.currentAppURLProvider = currentAppURLProvider
+        self.flushTimeout = flushTimeout
     }
 
     func configureLifecycle(
@@ -91,6 +106,7 @@ final class UpdateController {
     }
 
     func downloadAndInstall() async {
+        guard !isInstallationInProgress else { return }
         guard let release = availableRelease,
               let latest = release.latestVersion,
               let archive = release.archiveAsset,
@@ -105,6 +121,7 @@ final class UpdateController {
         do {
             let checksumBytes = try await client.data(from: checksum.browserDownloadURL)
             let zipURL = try await client.download(from: archive.browserDownloadURL)
+            state = .validating(release)
             try await UpdateChecksum.verifyInBackground(fileURL: zipURL, checksumData: checksumBytes)
 
             let candidate = try await installer.extractArchive(zipURL)
@@ -121,12 +138,37 @@ final class UpdateController {
             )
 
             state = .installing(latest)
-            await flushHandler()
+            try await flushForUpdate()
             try installer.launchReplacementHelper(helper)
             terminateHandler()
         } catch {
             state = .error(error.localizedDescription)
             isPresented = true
+        }
+    }
+
+    private var isInstallationInProgress: Bool {
+        switch state {
+        case .downloading, .validating, .installing:
+            true
+        default:
+            false
+        }
+    }
+
+    func flushForUpdate() async throws {
+        let timeout = flushTimeout
+        let flush = flushHandler
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await flush()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw UpdateControllerError.flushTimedOut
+            }
+            defer { group.cancelAll() }
+            try await group.next()
         }
     }
 

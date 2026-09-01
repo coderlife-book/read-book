@@ -33,7 +33,7 @@ final class ReaderDragRegionTests: XCTestCase {
         XCTAssertNotEqual(method_getImplementation(dragMethod), method_getImplementation(baseMethod))
     }
 
-    func testCursorUpdateUsesArrowCursor() throws {
+    func testCursorUpdateUsesOpenHandCursor() throws {
         let window = NSWindow(
             contentRect: NSRect(x: 100, y: 100, width: 360, height: 260),
             styleMask: [.titled, .resizable, .closable],
@@ -47,7 +47,7 @@ final class ReaderDragRegionTests: XCTestCase {
         NSCursor.iBeam.set()
         view.cursorUpdate(with: event)
 
-        XCTAssertTrue(NSCursor.current === NSCursor.arrow)
+        XCTAssertTrue(NSCursor.current === NSCursor.openHand)
     }
 
     func testDragViewOwnsHoverTrackingPolicy() throws {

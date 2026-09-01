@@ -45,10 +45,10 @@ final class ReaderDragView: NSView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .arrow)
+        addCursorRect(bounds, cursor: .openHand)
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        NSCursor.arrow.set()
+        NSCursor.openHand.set()
     }
 }
