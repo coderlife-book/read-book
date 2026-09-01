@@ -67,6 +67,15 @@ struct UpdatePromptView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+        case .validating:
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("正在校验更新包…")
+            }
+            Text("正在检查完整性、版本和签名，请稍候。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
         case .installing(let version):
             HStack(spacing: 10) {
                 ProgressView()

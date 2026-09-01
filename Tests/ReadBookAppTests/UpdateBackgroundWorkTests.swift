@@ -84,6 +84,8 @@ final class UpdateBackgroundWorkTests: XCTestCase {
         XCTAssertTrue(script.contains("MAX_WAIT_TICKS=150"))
         XCTAssertTrue(script.contains("WAIT_TICKS=$((WAIT_TICKS + 1))"))
         XCTAssertTrue(script.contains("exit 20"))
+        XCTAssertTrue(script.contains("/usr/bin/open \"$CURRENT\""))
+        XCTAssertTrue(script.contains("mv \"$CURRENT\" \"$BACKUP\" || {"))
     }
 }
 

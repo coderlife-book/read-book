@@ -53,7 +53,7 @@ final class WindowCoordinatorTests: XCTestCase {
         registry.applyAppearance(.frameless)
         XCTAssertFalse(window.hasShadow)
         registry.applyAppearance(.card)
-        XCTAssertTrue(window.hasShadow)
+        XCTAssertFalse(window.hasShadow)
         XCTAssertEqual(window.contentView?.layer?.cornerRadius, 26)
         XCTAssertTrue(window.contentView?.layer?.masksToBounds == true)
     }

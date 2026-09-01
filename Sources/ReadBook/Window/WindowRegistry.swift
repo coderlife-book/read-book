@@ -59,7 +59,9 @@ final class WindowRegistry: ReaderWindowDriving {
         switch appearance {
         case .card:
             applyContentCornerRadius(26, to: readerWindow)
-            if !readerWindow.hasShadow { readerWindow.hasShadow = true }
+            // Keep the rounded card edge flush with the window; native shadows
+            // extend beyond the content and expose the desktop as a halo.
+            readerWindow.hasShadow = false
         case .frameless, .transparent:
             applyContentCornerRadius(0, to: readerWindow)
             if readerWindow.hasShadow { readerWindow.hasShadow = false }
