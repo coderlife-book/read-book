@@ -27,6 +27,18 @@
 
 <p align="center"><sub>工具栏离开后自动隐藏，只留下正文。截图内容为原创演示文本。</sub></p>
 
+<p align="center">
+  <img src="docs/images/readbook-reader-window.png" width="470" alt="ReadBook 阅读窗口与隐藏工具栏">
+</p>
+
+<p align="center"><sub>阅读窗口支持本地 TXT、目录切换、分页与滚动阅读。</sub></p>
+
+<p align="center">
+  <img src="docs/images/readbook-library-overview.png" width="760" alt="ReadBook 目录与阅读窗口总览">
+</p>
+
+<p align="center"><sub>目录面板支持章节搜索、最近阅读和快速导入 TXT。</sub></p>
+
 ## 为什么做 ReadBook
 
 大多数阅读器适合管理一整套电子书库，ReadBook 只解决一个更具体的问题：在 Mac 上随手打开一本本地 TXT，安静地读几分钟，然后回到原来的工作。
