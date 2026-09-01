@@ -56,7 +56,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 # SwiftPM's linker ad-hoc signs the raw executable before the .app bundle exists.
-# Re-sign the completed bundle so Info.plist, icon, and resources are sealed.
-codesign --force --sign - --timestamp=none "$APP"
+# Re-sign the completed bundle so Info.plist, icon, resources, and the colocated
+# MLX Metal kernel library (a Mach-O subcomponent) are all sealed.
+codesign --force --deep --sign - --timestamp=none "$APP"
 
 printf 'Built %s (v%s build %s)\n' "$APP" "$APP_VERSION" "$APP_BUILD"
