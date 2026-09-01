@@ -5,11 +5,13 @@ import ReadBookCore
 final class WindowRegistry: ReaderWindowDriving {
     private weak var readerWindow: NSWindow?
     private let coordinator = WindowCoordinator()
+    private let toolbarController = ReaderNativeToolbarController()
 
-    func register(_ window: NSWindow) {
+    func register(_ window: NSWindow, titlebarState: ReaderTitlebarState) {
         guard readerWindow !== window else { return }
         readerWindow = window
         coordinator.configure(window)
+        toolbarController.install(on: window, state: titlebarState)
     }
 
     var readerFrameInScreen: CGRect? {
