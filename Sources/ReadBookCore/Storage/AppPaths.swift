@@ -5,6 +5,8 @@ public struct AppPaths: Sendable {
 
     public var booksRoot: URL { root.appendingPathComponent("Books", isDirectory: true) }
     public var cacheRoot: URL { root.appendingPathComponent("Cache", isDirectory: true) }
+    public var modelsRoot: URL { root.appendingPathComponent("Models", isDirectory: true) }
+    public var modelDownloadsRoot: URL { modelsRoot.appendingPathComponent(".partial", isDirectory: true) }
     public var libraryIndexURL: URL { root.appendingPathComponent("library.json") }
 
     public init(root: URL? = nil) {

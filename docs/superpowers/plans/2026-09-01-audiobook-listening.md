@@ -426,7 +426,10 @@ fi
 
 aligner_cache="$prototype_hub/models--mlx-community--Qwen3-ForcedAligner-0.6B-4bit"
 aligner_revision=2f652af86ae0c73fe189b9429225c908ce4bf020
-test "$(cat "$aligner_cache/refs/main")" = "$aligner_revision"
+test -d "$aligner_cache/snapshots/$aligner_revision"
+if [[ -f "$aligner_cache/refs/main" ]]; then
+  test "$(cat "$aligner_cache/refs/main")" = "$aligner_revision"
+fi
 aligner_destination="$readbook_models/aligner/$aligner_revision"
 if [[ ! -d "$aligner_destination" ]]; then
   mkdir -p "$readbook_models/aligner/.partial-$aligner_revision"
