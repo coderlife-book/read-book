@@ -31,7 +31,11 @@ final class AppRuntime {
     }
 
     func register(window: NSWindow) {
-        windowRegistry.register(window, titlebarState: titlebar)
+        windowRegistry.register(
+            window,
+            titlebarState: titlebar,
+            chrome: chrome
+        )
         applyPreferences(lastPreferences)
     }
 
