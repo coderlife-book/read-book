@@ -9,6 +9,8 @@ struct ContinuousReaderView: View {
     let style: ReaderTextStyle
     let textColor: NSColor
     let onPositionChanged: (BookPosition) -> Void
+    let highlightedRange: Range<Int>? = nil
+    let onSelectionChanged: (NSRange) -> Void = { _ in }
 
     var body: some View {
         ContinuousTextView(
@@ -17,7 +19,9 @@ struct ContinuousReaderView: View {
             anchor: anchor,
             style: style,
             textColor: textColor,
-            onPositionChanged: onPositionChanged
+            onPositionChanged: onPositionChanged,
+            highlightedRange: highlightedRange,
+            onSelectionChanged: onSelectionChanged
         )
     }
 }

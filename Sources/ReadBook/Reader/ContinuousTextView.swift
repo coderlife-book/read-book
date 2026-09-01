@@ -9,9 +9,31 @@ struct ContinuousTextView: NSViewRepresentable {
     let style: ReaderTextStyle
     let textColor: NSColor
     let onPositionChanged: (BookPosition) -> Void
+    let highlightedRange: Range<Int>?
+    let onSelectionChanged: (NSRange) -> Void
+
+    init(
+        bookID: UUID,
+        text: String,
+        anchor: BookPosition,
+        style: ReaderTextStyle,
+        textColor: NSColor,
+        onPositionChanged: @escaping (BookPosition) -> Void,
+        highlightedRange: Range<Int>? = nil,
+        onSelectionChanged: @escaping (NSRange) -> Void = { _ in }
+    ) {
+        self.bookID = bookID
+        self.text = text
+        self.anchor = anchor
+        self.style = style
+        self.textColor = textColor
+        self.onPositionChanged = onPositionChanged
+        self.highlightedRange = highlightedRange
+        self.onSelectionChanged = onSelectionChanged
+    }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onPositionChanged: onPositionChanged)
+        Coordinator(onPositionChanged: onPositionChanged, onSelectionChanged: onSelectionChanged)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -42,6 +64,7 @@ struct ContinuousTextView: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.onPositionChanged = onPositionChanged
+        context.coordinator.onSelectionChanged = onSelectionChanged
         context.coordinator.update(
             bookID: bookID,
             text: text,
@@ -49,6 +72,7 @@ struct ContinuousTextView: NSViewRepresentable {
             style: style,
             textColor: textColor
         )
+        context.coordinator.updateHighlight(highlightedRange)
     }
 
     static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
@@ -58,6 +82,7 @@ struct ContinuousTextView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         var onPositionChanged: (BookPosition) -> Void
+        var onSelectionChanged: (NSRange) -> Void
         weak var scrollView: NSScrollView?
         weak var textView: NSTextView?
 
@@ -68,13 +93,19 @@ struct ContinuousTextView: NSViewRepresentable {
         private var currentStyle: ReaderTextStyle?
         private var currentColor: NSColor?
         private var observer: NSObjectProtocol?
+        private var selectionObserver: NSObjectProtocol?
+        private var highlightedRange: Range<Int>?
         private var lastReportedOffset: Int?
         private var lastAppliedAnchor: Int?
         private var isApplyingProgrammaticChange = false
         private var recenterScheduled = false
 
-        init(onPositionChanged: @escaping (BookPosition) -> Void) {
+        init(
+            onPositionChanged: @escaping (BookPosition) -> Void,
+            onSelectionChanged: @escaping (NSRange) -> Void = { _ in }
+        ) {
             self.onPositionChanged = onPositionChanged
+            self.onSelectionChanged = onSelectionChanged
         }
 
         func attach(scrollView: NSScrollView, textView: NSTextView) {
@@ -89,11 +120,25 @@ struct ContinuousTextView: NSViewRepresentable {
                     self?.reportTopVisiblePosition()
                 }
             }
+            selectionObserver = NotificationCenter.default.addObserver(
+                forName: NSTextView.didChangeSelectionNotification,
+                object: textView,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.reportSelection() }
+            }
         }
 
         func detach() {
             if let observer { NotificationCenter.default.removeObserver(observer) }
+            if let selectionObserver { NotificationCenter.default.removeObserver(selectionObserver) }
             observer = nil
+            selectionObserver = nil
+        }
+
+        func updateHighlight(_ globalRange: Range<Int>?) {
+            highlightedRange = globalRange
+            applyHighlight()
         }
 
         func update(
@@ -161,6 +206,7 @@ struct ContinuousTextView: NSViewRepresentable {
 
             isApplyingProgrammaticChange = true
             textView.textStorage?.setAttributedString(attributed)
+            applyHighlight()
             textView.textContainerInset = NSSize(
                 width: style.horizontalPadding,
                 height: style.verticalPadding
@@ -235,6 +281,34 @@ struct ContinuousTextView: NSViewRepresentable {
             }
 
             scheduleRecenteringIfNeeded(at: globalCharacter)
+        }
+
+        private func reportSelection() {
+            guard !isApplyingProgrammaticChange,
+                  let range = textView?.selectedRange(),
+                  range.length > 0,
+                  let window = currentWindow else { return }
+            let lower = window.globalOffset(forLocalOffset: range.location)
+            let upper = window.globalOffset(forLocalOffset: NSMaxRange(range))
+            onSelectionChanged(NSRange(location: lower, length: max(upper - lower, 0)))
+        }
+
+        private func applyHighlight() {
+            guard let textView, let window = currentWindow else { return }
+            let length = (textView.string as NSString).length
+            guard length > 0 else { return }
+            let fullRange = NSRange(location: 0, length: length)
+            textView.textStorage?.removeAttribute(.backgroundColor, range: fullRange)
+            guard let highlightedRange else { return }
+            let lower = max(highlightedRange.lowerBound, window.utf16Range.lowerBound)
+            let upper = min(highlightedRange.upperBound, window.utf16Range.upperBound)
+            guard lower < upper else { return }
+            let local = NSRange(location: lower - window.utf16Range.lowerBound, length: upper - lower)
+            textView.textStorage?.addAttribute(
+                .backgroundColor,
+                value: NSColor.systemYellow.withAlphaComponent(0.28),
+                range: local
+            )
         }
 
         private func scheduleRecenteringIfNeeded(at globalOffset: Int) {
