@@ -165,7 +165,7 @@ Run from the existing isolated Python environment:
 
 ```bash
 HF_HOME=/tmp/readbook-qwen3-tts/hf-home \
-  /tmp/readbook-qwen3-tts/venv/bin/huggingface-cli download \
+  /tmp/readbook-qwen3-tts/venv/bin/hf download \
   mlx-community/Qwen3-ForcedAligner-0.6B-4bit \
   --revision 2f652af86ae0c73fe189b9429225c908ce4bf020
 ```
