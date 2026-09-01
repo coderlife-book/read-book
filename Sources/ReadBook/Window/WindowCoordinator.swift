@@ -10,6 +10,7 @@ final class WindowCoordinator: NSObject, NSWindowDelegate {
         window.styleMask.remove(.fullSizeContentView)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.isOpaque = false
