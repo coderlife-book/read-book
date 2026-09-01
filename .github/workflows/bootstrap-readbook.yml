@@ -103,4 +103,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ReadBook $TAG" \
-            --notes "ReadBook $TAG 窗口交互修复版本。\n\n- 移除重复的系统 Header，只保留 hover 出现的自定义阅读工具栏\n- 恢复 macOS 原生四边与四角 Resize，并移除覆盖正文的自绘 Resize 层\n- 工具栏隐藏时保留顶部拖动与 hover 热区，空书库状态也可自然拖动窗口\n- 统一 AppKit 与 SwiftUI 的 26pt 连续圆角，消除四角阴影月牙\n- 保持正文滚动、文本交互、置顶和阅读进度逻辑不受窗口事件影响\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
+            --notes "ReadBook $TAG 窗口交互与自动更新可靠性修复版本。\n\n- 修复阅读窗口顶部拖动区域和工具栏按钮光标交互\n- 保持原生 Resize，统一卡片圆角并消除阴影月牙\n- 增加更新包校验状态、阅读进度保存超时保护和安装失败重启\n- 补充窗口与自动更新回归测试\n\n说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。"
