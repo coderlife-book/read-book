@@ -9,6 +9,7 @@ struct ReaderRootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var showLibrary = false
+    @State private var selectedSpeechRange: NSRange?
     @State private var selectedRecoveryEncoding: ImportedTextEncoding = .gb18030
 
     var body: some View {
@@ -97,6 +98,23 @@ struct ReaderRootView: View {
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
         .popover(isPresented: $showLibrary, arrowEdge: .top) {
             LibraryPopoverView(model: model)
+        }
+        .popover(
+            isPresented: Binding(
+                get: { selectedSpeechRange != nil },
+                set: { if !$0 { selectedSpeechRange = nil } }
+            ),
+            arrowEdge: .bottom
+        ) {
+            Button {
+                guard let range = selectedSpeechRange else { return }
+                selectedSpeechRange = nil
+                Task { await model.startAudiobookFromSelection(range) }
+            } label: {
+                Label("从此处开始听", systemImage: "headphones")
+            }
+            .buttonStyle(.plain)
+            .padding(10)
         }
         .confirmationDialog(
             "下载听书模型",
@@ -187,7 +205,7 @@ struct ReaderRootView: View {
                 textColor: textColor,
                 onPositionChanged: model.updatePosition,
                 highlightedRange: model.audiobookController?.highlightedRange,
-                onSelectionChanged: { _ in }
+                onSelectionChanged: { range in selectedSpeechRange = range }
             )
         case .continuous:
             if let bookID = model.currentBook?.id {
@@ -199,7 +217,7 @@ struct ReaderRootView: View {
                     textColor: textColor,
                     onPositionChanged: model.updatePosition,
                     highlightedRange: model.audiobookController?.highlightedRange,
-                    onSelectionChanged: { _ in }
+                    onSelectionChanged: { range in selectedSpeechRange = range }
                 )
             }
         }
@@ -234,7 +252,12 @@ struct ReaderRootView: View {
                 NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
             },
             audiobookState: model.currentBook == nil ? nil : model.audiobookController?.state ?? .idle,
-            onAudiobookToggle: { Task { await model.startAudiobook() } }
+            onAudiobookToggle: { Task { await model.startAudiobook() } },
+            speechRate: model.preferences.speechRate,
+            onSpeechRateChange: { rate in
+                model.updatePreferences { $0.speechRate = rate }
+                model.audiobookController?.setRate(rate)
+            }
         )
         .foregroundStyle(Color(nsColor: palette.text))
         .background(controlScrim(palette: palette))

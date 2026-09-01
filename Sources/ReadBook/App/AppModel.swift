@@ -122,6 +122,15 @@ final class AppModel {
         await audiobookController?.startFromReadingPosition(text: text, position: position)
     }
 
+    func startAudiobookFromSelection(_ range: NSRange) async {
+        guard currentBook != nil else { return }
+        if let audiobookController {
+            await audiobookController.startFromSelection(range, text: text)
+        } else {
+            await startAudiobook()
+        }
+    }
+
     func downloadAudiobookModelsAndStart() async {
         guard !isAudiobookDownloading else { return }
         isAudiobookDownloading = true
