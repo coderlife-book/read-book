@@ -19,14 +19,16 @@ final class WindowCoordinatorTests: XCTestCase {
         XCTAssertTrue(window.titlebarAppearsTransparent)
         XCTAssertEqual(window.titlebarSeparatorStyle, .none)
         XCTAssertFalse(window.isMovableByWindowBackground)
-        XCTAssertNil(window.toolbar)
     }
 
     @MainActor
     func testRegistryAppliesAppearanceAndPointerPassThrough() {
         let registry = WindowRegistry()
         let window = makeWindow()
-        registry.register(window)
+        registry.register(window, titlebarState: ReaderTitlebarState())
+
+        XCTAssertEqual(window.toolbar?.identifier, "ReadBook.ReaderToolbar")
+        XCTAssertEqual(window.toolbarStyle, .unifiedCompact)
 
         var preferences = ReaderPreferences.defaults
         preferences.appPresenceMode = .normal
