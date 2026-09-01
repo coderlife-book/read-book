@@ -39,6 +39,12 @@ final class V015InteractionRegressionTests: XCTestCase {
         XCTAssertFalse(toolbar.contains("performDrag(with:"))
     }
 
+    func testReaderRootDoesNotRenderASecondTopToolbar() throws {
+        let root = try source("Sources/ReadBook/Reader/ReaderRootView.swift")
+        XCTAssertFalse(root.contains("ReaderToolbar("))
+        XCTAssertFalse(root.contains(".frame(height: 20)"))
+    }
+
     private func source(_ relativePath: String) throws -> String {
         let fileURL = URL(fileURLWithPath: #filePath)
         let root = fileURL
