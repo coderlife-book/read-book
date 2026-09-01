@@ -7,6 +7,7 @@ import ReadBookCore
 final class AppModel {
     let repository: LibraryRepository
     let session: ReaderSession
+    let audiobookController: AudiobookController?
     private let preferencesStore: PreferencesStore
 
     var books: [BookMetadata] = []
@@ -18,10 +19,12 @@ final class AppModel {
 
     init(
         repository: LibraryRepository = LibraryRepository(),
-        preferencesStore: PreferencesStore = PreferencesStore()
+        preferencesStore: PreferencesStore = PreferencesStore(),
+        audiobookController: AudiobookController? = nil
     ) {
         self.repository = repository
         self.preferencesStore = preferencesStore
+        self.audiobookController = audiobookController
         self.preferences = (try? preferencesStore.load()) ?? .defaults
         self.session = ReaderSession(repository: repository)
         self.session.setReadingMode(self.preferences.readingMode)
@@ -55,6 +58,7 @@ final class AppModel {
     }
 
     func open(_ id: UUID) async throws {
+        await audiobookController?.stop(reason: .bookChanged)
         try await session.open(bookID: id)
         sessionRevision &+= 1
         await reloadLibrary()
@@ -89,6 +93,9 @@ final class AppModel {
     }
 
     func jump(to chapter: Chapter) {
+        Task { @MainActor [weak audiobookController] in
+            await audiobookController?.stop(reason: .selectionJump)
+        }
         session.jump(to: chapter)
         sessionRevision &+= 1
     }
@@ -117,7 +124,10 @@ final class AppModel {
     func remove(bookID: UUID) async {
         do {
             let removingCurrent = currentBook?.id == bookID
-            if removingCurrent { await session.flush() }
+            if removingCurrent {
+                await audiobookController?.stop(reason: .bookRemoved)
+                await session.flush()
+            }
             try await repository.remove(bookID: bookID)
             await reloadLibrary()
             if removingCurrent {

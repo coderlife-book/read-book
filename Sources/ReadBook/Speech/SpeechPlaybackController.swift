@@ -55,6 +55,7 @@ final class SpeechPlaybackController {
 
     private(set) var state: SpeechPlaybackState = .idle
     private(set) var currentSentenceRange: Range<Int>?
+    var onSentenceFinished: (() -> Void)?
 
     init(driver: any AudioPlaybackDriving = AVAudioPlaybackDriver()) {
         self.driver = driver
@@ -107,6 +108,7 @@ final class SpeechPlaybackController {
     }
 
     private func didFinishCurrentSentence() {
+        onSentenceFinished?()
         current = nil
         pausedFrame = 0
 
