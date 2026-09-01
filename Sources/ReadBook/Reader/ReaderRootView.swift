@@ -190,7 +190,9 @@ struct ReaderRootView: View {
                 anchor: model.position,
                 style: style,
                 textColor: textColor,
-                onPositionChanged: model.updatePosition
+                onPositionChanged: model.updatePosition,
+                highlightedRange: model.audiobookController?.highlightedRange,
+                onSelectionChanged: { _ in }
             )
         case .continuous:
             if let bookID = model.currentBook?.id {
@@ -200,7 +202,9 @@ struct ReaderRootView: View {
                     anchor: model.position,
                     style: style,
                     textColor: textColor,
-                    onPositionChanged: model.updatePosition
+                    onPositionChanged: model.updatePosition,
+                    highlightedRange: model.audiobookController?.highlightedRange,
+                    onSelectionChanged: { _ in }
                 )
             }
         }
