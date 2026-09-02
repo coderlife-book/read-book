@@ -64,6 +64,18 @@ final class AppModelAudiobookTests: XCTestCase {
         XCTAssertEqual(blocks.first?.sentences.first?.text, "现在才告诉我？")
     }
 
+    func testAudiobookDownloadSurfacesSpecificManagerFailure() async throws {
+        let fixture = try AppModelAudiobookFixture(seedModels: false, downloadFails: true)
+        try await fixture.addBook(title: "听书", text: "第一句。第二句。")
+        let model = fixture.makeModel()
+        try await model.open(fixture.bookIDs[0])
+
+        await model.downloadAudiobookModelsAndStart()
+
+        XCTAssertEqual(model.lastErrorMessage, "模型下载失败：网络连接超时。")
+        XCTAssertNil(model.audiobookController)
+    }
+
     func testNewAudiobookControllerUsesPersistedSpeechRate() async throws {
         let fixture = try AppModelAudiobookFixture()
         try await fixture.addBook(title: "听书", text: "第一句。第二句。")
@@ -100,7 +112,7 @@ private final class AppModelAudiobookFixture {
     let playback = RecordingAudiobookPlayback()
     private(set) var bookIDs: [UUID] = []
 
-    init(seedModels: Bool = true) throws {
+    init(seedModels: Bool = true, downloadFails: Bool = false) throws {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("AppModelAudiobook-\(UUID().uuidString)", isDirectory: true)
         let paths = AppPaths(root: root)
@@ -113,9 +125,12 @@ private final class AppModelAudiobookFixture {
         if seedModels {
             try SpeechSnapshotWriter.writeAll(to: modelsRoot)
         }
+        let downloader: any SpeechModelDownloading = downloadFails
+            ? FailingAudiobookDownloader()
+            : SnapshotWritingAudiobookDownloader(root: modelsRoot)
         manager = SpeechModelManager(
             locator: locator,
-            downloader: SnapshotWritingAudiobookDownloader(root: modelsRoot),
+            downloader: downloader,
             stopper: RecordingAudiobookStopper(),
             modelsRoot: modelsRoot
         )
@@ -215,6 +230,16 @@ private actor SnapshotWritingAudiobookDownloader: SpeechModelDownloading {
         return modelsRoot
             .appendingPathComponent(descriptor.kind.rawValue, isDirectory: true)
             .appendingPathComponent(descriptor.revision, isDirectory: true)
+    }
+}
+
+private actor FailingAudiobookDownloader: SpeechModelDownloading {
+    func download(
+        _ descriptor: SpeechModelDescriptor,
+        to modelsRoot: URL,
+        progress: @Sendable (SpeechDownloadProgress) -> Void
+    ) async throws -> URL {
+        throw URLError(.timedOut)
     }
 }
 

@@ -206,7 +206,11 @@ final class AppModel {
         let selection = pendingAudiobookSelection
         await modelManager.prepareMissingModels()
         guard case .ready(let locations) = modelManager.state else {
-            lastErrorMessage = "听书模型下载失败，请稍后重试。"
+            if case .failed(let message) = modelManager.state {
+                lastErrorMessage = message
+            } else {
+                lastErrorMessage = "听书模型下载失败，请稍后重试。"
+            }
             return
         }
         configureAudiobook(locations)
