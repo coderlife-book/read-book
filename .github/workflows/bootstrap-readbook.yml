@@ -14,6 +14,7 @@ jobs:
     runs-on: macos-26
     outputs:
       version: ${{ steps.package_meta.outputs.version }}
+      release_required: ${{ steps.release_policy.outputs.release_required }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,15 +23,23 @@ jobs:
       - name: Determine change scope
         id: change_scope
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
         run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            BASE_SHA="$PUSH_BASE_SHA"
+          else
+            BASE_SHA="$PR_BASE_SHA"
+          fi
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+          changed_files="$RUNNER_TEMP/readbook-changed-files"
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > "$changed_files"
+
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             echo "needs_build=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          changed_files="$RUNNER_TEMP/readbook-changed-files"
-          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > "$changed_files"
 
           needs_build=false
           while IFS= read -r file; do
@@ -44,6 +53,11 @@ jobs:
       - name: Release policy tests
         if: steps.change_scope.outputs.needs_build == 'true'
         run: bash Tests/ReleasePolicyTests.sh
+
+      - name: Check release version policy
+        id: release_policy
+        if: steps.change_scope.outputs.needs_build == 'true'
+        run: bash Scripts/check-release-policy.sh "${{ steps.change_scope.outputs.base_sha }}" "$GITHUB_SHA"
 
       - name: Documentation-only change
         if: steps.change_scope.outputs.needs_build != 'true'
@@ -131,7 +145,10 @@ jobs:
           retention-days: 14
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.test-build-package.outputs.release_required == 'true'
     needs: test-build-package
     runs-on: ubuntu-latest
     permissions:
@@ -155,19 +172,20 @@ jobs:
         run: |
           TAG="v$VERSION"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "$TAG already exists; leaving the published binary immutable."
-            exit 0
+            echo "::error::$TAG already exists. Product changes must increment APP_VERSION and APP_BUILD before merging."
+            exit 1
           fi
 
           cat > release-notes.md <<EOF
-          ReadBook $TAG 本地听书版本。
+          ReadBook $TAG 模型管理与下载可靠性更新。
 
-          - 增加完全本地的中文听书、句子高亮和选区起播
-          - 使用 Serena 声线，支持 0.5x 至 1.5x 倍速和暂停恢复
-          - 首次使用时按需下载固定版本的 TTS 与对齐模型，普通阅读不加载模型
-          - 设置页可查看和删除听书模型
+          - 设置页支持 Hugging Face 与自定义 HF-compatible 镜像下载源
+          - 支持单模型下载、重试、下载全部缺失模型和重新扫描本地模型
+          - 支持手动导入固定版本的 TTS / 语音对齐模型，并校验模型文件完整性
+          - 下载失败会显示网络超时、HTTP 状态、断点续传、磁盘空间等具体原因
+          - 阅读页首次听书下载与设置页共享持久化下载源配置
 
-          说明：语音模型约 3.8 GB，不包含在安装包中，首次使用听书时按提示下载。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
+          说明：语音模型约 3.8 GB，不包含在安装包中。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
           EOF
 
           gh release create "$TAG" \
