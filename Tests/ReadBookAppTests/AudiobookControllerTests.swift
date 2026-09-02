@@ -26,11 +26,20 @@ final class AudiobookControllerTests: XCTestCase {
         await fixture.controller.startFromReadingPosition(text: fixture.text)
         for _ in 0..<10 {
             fixture.playback.complete(sentences: 1)
-            for _ in 0..<4 { await Task.yield() }
+            let advanced = await waitUntil {
+                fixture.playback.currentSentenceRange != nil
+            }
+            XCTAssertTrue(advanced, "expected playback to advance before timeout")
         }
 
+        let refilled = await waitUntil {
+            let count = await fixture.queue.count
+            let callCount = await fixture.preparer.callCount
+            return callCount > 1 && (10...30).contains(count)
+        }
         let count = await fixture.queue.count
         let callCount = await fixture.preparer.callCount
+        XCTAssertTrue(refilled, "expected queue refill before timeout")
         XCTAssertTrue(callCount > 1)
         XCTAssertTrue((10...30).contains(count))
     }
@@ -53,11 +62,13 @@ final class AudiobookControllerTests: XCTestCase {
 
         await controller.startFromReadingPosition(text: text)
         playback.complete(sentences: 1)
-        for _ in 0..<8 { await Task.yield() }
+        let buffered = await waitUntil { controller.state == .buffering }
+        XCTAssertTrue(buffered, "expected playback to buffer before timeout")
         XCTAssertEqual(controller.state, .buffering)
 
         await preparer.releaseRefill()
-        for _ in 0..<20 { await Task.yield() }
+        let resumed = await waitUntil { controller.state == .playing }
+        XCTAssertTrue(resumed, "expected playback to resume before timeout")
         XCTAssertEqual(controller.state, .playing)
         XCTAssertNotNil(controller.highlightedRange)
     }
@@ -90,6 +101,19 @@ final class AudiobookControllerTests: XCTestCase {
         let newRange = (newText as NSString).range(of: "新会话第一句。")
         XCTAssertEqual(controller.highlightedRange, newRange.location..<NSMaxRange(newRange))
         XCTAssertEqual(playback.currentSentenceRange, newRange.location..<NSMaxRange(newRange))
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        condition: @MainActor () async -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !(await condition()) {
+            guard clock.now < deadline else { return false }
+            await Task.yield()
+        }
+        return true
     }
 }
 
