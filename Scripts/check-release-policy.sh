@@ -13,9 +13,9 @@ write_output() {
   fi
 }
 
-is_release_impacting_path() {
+is_maintenance_path() {
   case "$1" in
-    Sources/*|DesignAssets/*|Package.swift|Package.resolved|Scripts/build-app.sh|Scripts/render-branding.swift)
+    .github/*|Tests/*|AGENTS.md|README.md|docs/*|.gitignore|Scripts/check-release-policy.sh)
       return 0
       ;;
     *)
@@ -64,7 +64,7 @@ version_greater_than() {
 
 release_required=false
 while IFS= read -r file; do
-  if is_release_impacting_path "$file"; then
+  if ! is_maintenance_path "$file"; then
     release_required=true
     break
   fi
@@ -73,7 +73,7 @@ done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
 write_output "$release_required"
 
 if [[ "$release_required" != "true" ]]; then
-  echo "No user-facing release impact detected; version bump is not required."
+  echo "Maintenance-only change detected; version bump is not required."
   exit 0
 fi
 
