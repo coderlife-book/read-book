@@ -185,12 +185,11 @@ jobs:
           fi
 
           cat > release-notes.md <<EOF
-          ReadBook $TAG 下载与更新可靠性修复。
+          ReadBook $TAG 连续滚动可靠性修复。
 
-          - Hugging Face / HF-compatible 镜像未提供 Content-Length 时不再直接终止模型下载
-          - 未知文件大小时使用锁定模型的预估总大小展示进度，并继续保留 partial 断点文件
-          - 内置更新最终保存阅读进度改为真正的硬超时，不再被不响应 cancellation 的保存任务永久拖住
-          - 最终保存超时时仍继续安装已经下载并校验通过的更新，避免长期卡在“正在安装”
+          - 修复连续阅读滚动时无听书高亮仍反复编辑 TextKit 属性导致的抖动和回拉感
+          - 相同听书高亮范围不再重复刷新整段 NSTextStorage，避免与原生惯性滚动互相干扰
+          - 保留听书句子切换时的高亮更新与必要自动跟随，普通滚动不再被重复高亮刷新打断
 
           说明：语音模型约 3.8 GB，不包含在安装包中。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
           EOF
