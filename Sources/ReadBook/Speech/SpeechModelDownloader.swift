@@ -5,6 +5,41 @@ struct SpeechDownloadProgress: Equatable, Sendable {
     let totalBytes: Int64
 }
 
+struct SpeechModelDownloadSource: Equatable, Sendable {
+    let baseURL: URL
+
+    static let huggingFace = SpeechModelDownloadSource(
+        baseURL: URL(string: "https://huggingface.co")!
+    )
+
+    func resolveURL(
+        descriptor: SpeechModelDescriptor,
+        relativePath: String
+    ) throws -> URL {
+        guard let scheme = baseURL.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              baseURL.host != nil else {
+            throw SpeechModelDownloadError.invalidSourceURL
+        }
+
+        var url = baseURL
+        for component in descriptor.repoID.split(separator: "/") {
+            url.appendPathComponent(String(component))
+        }
+        url.appendPathComponent("resolve")
+        url.appendPathComponent(descriptor.revision)
+        for component in relativePath.split(separator: "/") {
+            url.appendPathComponent(String(component))
+        }
+        return url
+    }
+}
+
+enum SpeechModelDownloadSourceMode: String, CaseIterable, Sendable {
+    case huggingFace
+    case customMirror
+}
+
 protocol SpeechDownloadTransport: Sendable {
     func contentLength(for url: URL) async throws -> Int64
     func bytes(
@@ -21,8 +56,35 @@ protocol SpeechModelDownloading: Sendable {
     ) async throws -> URL
 }
 
+protocol SpeechModelSourceDownloading: SpeechModelDownloading {
+    func download(
+        _ descriptor: SpeechModelDescriptor,
+        source: SpeechModelDownloadSource,
+        to modelsRoot: URL,
+        progress: @Sendable (SpeechDownloadProgress) -> Void
+    ) async throws -> URL
+}
+
+extension SpeechModelSourceDownloading {
+    func download(
+        _ descriptor: SpeechModelDescriptor,
+        to modelsRoot: URL,
+        progress: @Sendable (SpeechDownloadProgress) -> Void
+    ) async throws -> URL {
+        try await download(
+            descriptor,
+            source: .huggingFace,
+            to: modelsRoot,
+            progress: progress
+        )
+    }
+}
+
 enum SpeechModelDownloadError: Error, Equatable {
+    case invalidSourceURL
     case invalidResponse
+    case httpStatus(Int)
+    case rangeUnsupported
     case invalidContentLength(String)
     case incompleteFile(String)
     case insufficientDiskSpace(requiredBytes: Int64)
@@ -33,10 +95,14 @@ struct URLSessionSpeechDownloadTransport: SpeechDownloadTransport {
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode),
-              response.expectedContentLength >= 0 else {
+        guard let http = response as? HTTPURLResponse else {
             throw SpeechModelDownloadError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw SpeechModelDownloadError.httpStatus(http.statusCode)
+        }
+        guard response.expectedContentLength >= 0 else {
+            throw SpeechModelDownloadError.invalidContentLength(url.lastPathComponent)
         }
         return response.expectedContentLength
     }
@@ -50,9 +116,15 @@ struct URLSessionSpeechDownloadTransport: SpeechDownloadTransport {
             request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range")
         }
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard let http = response as? HTTPURLResponse,
-              http.statusCode == (offset > 0 ? 206 : 200) else {
+        guard let http = response as? HTTPURLResponse else {
             throw SpeechModelDownloadError.invalidResponse
+        }
+        if offset > 0, http.statusCode == 200 {
+            throw SpeechModelDownloadError.rangeUnsupported
+        }
+        let expectedStatus = offset > 0 ? 206 : 200
+        guard http.statusCode == expectedStatus else {
+            throw SpeechModelDownloadError.httpStatus(http.statusCode)
         }
 
         return AsyncThrowingStream { continuation in
@@ -79,7 +151,7 @@ struct URLSessionSpeechDownloadTransport: SpeechDownloadTransport {
     }
 }
 
-actor SpeechModelDownloader: SpeechModelDownloading {
+actor SpeechModelDownloader: SpeechModelSourceDownloading {
     private let transport: any SpeechDownloadTransport
     private let fileManager = FileManager.default
 
@@ -89,6 +161,7 @@ actor SpeechModelDownloader: SpeechModelDownloading {
 
     func download(
         _ descriptor: SpeechModelDescriptor,
+        source: SpeechModelDownloadSource,
         to modelsRoot: URL,
         progress: @Sendable (SpeechDownloadProgress) -> Void
     ) async throws -> URL {
@@ -105,7 +178,7 @@ actor SpeechModelDownloader: SpeechModelDownloading {
 
         var files: [(path: String, url: URL, total: Int64, existing: Int64)] = []
         for path in descriptor.requiredRelativePaths {
-            let remoteURL = try remoteURL(descriptor: descriptor, path: path)
+            let remoteURL = try source.resolveURL(descriptor: descriptor, relativePath: path)
             let total = try await transport.contentLength(for: remoteURL)
             guard total >= 0 else { throw SpeechModelDownloadError.invalidContentLength(path) }
             let partialFile = partialRoot.appendingPathComponent(path)
@@ -163,17 +236,6 @@ actor SpeechModelDownloader: SpeechModelDownloading {
         )
         try fileManager.moveItem(at: partialRoot, to: destination)
         return destination
-    }
-
-    private func remoteURL(descriptor: SpeechModelDescriptor, path: String) throws -> URL {
-        let escapedPath = path
-            .split(separator: "/")
-            .map { String($0).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0) }
-            .joined(separator: "/")
-        guard let url = URL(string: "https://huggingface.co/\(descriptor.repoID)/resolve/\(descriptor.revision)/\(escapedPath)") else {
-            throw SpeechModelDownloadError.invalidResponse
-        }
-        return url
     }
 
     private func fileSize(at url: URL) -> Int64 {

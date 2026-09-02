@@ -1,6 +1,7 @@
 import AppKit
 import ReadBookCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Bindable var model: AppModel
@@ -8,6 +9,11 @@ struct SettingsView: View {
 
     private let fonts = ["PingFang SC", "Songti SC", "STKaiti", "System"]
     @State private var isDeleteModelConfirmationPresented = false
+    @State private var isModelImportPresented = false
+    @State private var modelImportKind: SpeechModelKind = .tts
+    @State private var localModelManagementError: String?
+    @AppStorage("speechModelDownloadSourceMode") private var downloadSourceModeRaw = SpeechModelDownloadSourceMode.huggingFace.rawValue
+    @AppStorage("speechModelCustomMirrorURL") private var customMirrorURL = ""
 
     var body: some View {
         Form {
@@ -156,8 +162,21 @@ struct SettingsView: View {
             }
 
             Section("听书") {
+                Picker("下载源", selection: $downloadSourceModeRaw) {
+                    Text("Hugging Face").tag(SpeechModelDownloadSourceMode.huggingFace.rawValue)
+                    Text("自定义 HF 镜像").tag(SpeechModelDownloadSourceMode.customMirror.rawValue)
+                }
+
+                if downloadSourceMode == .customMirror {
+                    TextField("例如 https://hf-mirror.com", text: $customMirrorURL)
+                        .textFieldStyle(.roundedBorder)
+                    Text("镜像需要兼容 Hugging Face 的 /repo/resolve/revision/file 下载路径。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 ForEach(model.audiobookModelRows, id: \.kind) { row in
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 7) {
                         HStack {
                             Text(row.name)
                             Spacer()
@@ -174,8 +193,43 @@ struct SettingsView: View {
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                        HStack(spacing: 8) {
+                            Button(modelDownloadButtonTitle) {
+                                startModelDownload(row.kind)
+                            }
+                            .disabled(row.isInstalled || row.isDownloading)
+
+                            Button("导入本地模型…") {
+                                modelImportKind = row.kind
+                                isModelImportPresented = true
+                            }
+                            .disabled(row.isDownloading)
+                        }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
+                }
+
+                HStack(spacing: 8) {
+                    Button("下载全部缺失模型") {
+                        startMissingModelDownloads()
+                    }
+                    .disabled(
+                        model.audiobookInstalledKinds.count == SpeechModelKind.allCases.count
+                        || model.audiobookModelRows.contains(where: \.isDownloading)
+                    )
+
+                    Button("重新扫描本地模型") {
+                        localModelManagementError = nil
+                        Task { await model.discoverAudiobookModels() }
+                    }
+                }
+
+                if let error = modelManagementError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
                 }
 
                 Button("删除听书模型", role: .destructive) {
@@ -183,7 +237,11 @@ struct SettingsView: View {
                 }
                 .disabled(model.audiobookInstalledKinds.isEmpty)
 
-                Text("模型只在本机运行，下载约 3.8 GB。删除会停止当前听书并移除 ReadBook 管理的模型文件。")
+                Text("支持自动识别 Hugging Face 缓存，也可手动下载后导入模型目录。当前仅支持上面两套固定 Qwen 模型与指定 revision，不支持任意 TTS 架构。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("模型只在本机运行，完整下载约 3.8 GB。删除会停止当前听书并移除 ReadBook 管理的模型文件。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -197,18 +255,60 @@ struct SettingsView: View {
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("删除后需要重新下载才能继续听书。")
+                Text("删除后需要重新下载或重新导入才能继续听书。")
             }
         }
         .formStyle(.grouped)
         .padding(16)
-        .frame(width: 470, height: 610)
+        .frame(width: 500, height: 720)
         .task { await model.discoverAudiobookModels() }
+        .fileImporter(
+            isPresented: $isModelImportPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                importModel(modelImportKind, from: url)
+            case .failure(let error):
+                localModelManagementError = "模型目录选择失败：\(error.localizedDescription)"
+            }
+        }
     }
 
     private var currentVersion: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版"
         return "v\(version)"
+    }
+
+    private var downloadSourceMode: SpeechModelDownloadSourceMode {
+        SpeechModelDownloadSourceMode(rawValue: downloadSourceModeRaw) ?? .huggingFace
+    }
+
+    private var configuredDownloadSource: SpeechModelDownloadSource? {
+        switch downloadSourceMode {
+        case .huggingFace:
+            return .huggingFace
+        case .customMirror:
+            let value = customMirrorURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: value),
+                  let scheme = url.scheme?.lowercased(),
+                  ["http", "https"].contains(scheme),
+                  url.host != nil else { return nil }
+            return SpeechModelDownloadSource(baseURL: url)
+        }
+    }
+
+    private var modelDownloadButtonTitle: String {
+        if case .failed = model.speechModelManager?.state { return "重试" }
+        return "下载"
+    }
+
+    private var modelManagementError: String? {
+        if let localModelManagementError { return localModelManagementError }
+        if case .failed(let message) = model.speechModelManager?.state { return message }
+        return nil
     }
 
     private var textColorBinding: Binding<Color> {
@@ -239,6 +339,42 @@ struct SettingsView: View {
         case "Songti SC": "宋体"
         case "STKaiti": "楷体"
         default: "系统字体"
+        }
+    }
+
+    private func startModelDownload(_ kind: SpeechModelKind) {
+        guard let source = configuredDownloadSource else {
+            localModelManagementError = "下载源地址无效，请填写完整的 http:// 或 https:// 地址。"
+            return
+        }
+        localModelManagementError = nil
+        Task {
+            await model.discoverAudiobookModels()
+            await model.speechModelManager?.prepareModel(kind, source: source)
+        }
+    }
+
+    private func startMissingModelDownloads() {
+        guard let source = configuredDownloadSource else {
+            localModelManagementError = "下载源地址无效，请填写完整的 http:// 或 https:// 地址。"
+            return
+        }
+        localModelManagementError = nil
+        Task {
+            await model.discoverAudiobookModels()
+            await model.speechModelManager?.prepareMissingModels(source: source)
+        }
+    }
+
+    private func importModel(_ kind: SpeechModelKind, from url: URL) {
+        localModelManagementError = nil
+        Task {
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessed { url.stopAccessingSecurityScopedResource() }
+            }
+            await model.discoverAudiobookModels()
+            await model.speechModelManager?.importModel(kind, from: url)
         }
     }
 
