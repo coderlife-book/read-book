@@ -53,11 +53,13 @@ final class AudiobookControllerTests: XCTestCase {
 
         await controller.startFromReadingPosition(text: text)
         playback.complete(sentences: 1)
-        for _ in 0..<8 { await Task.yield() }
+        let buffered = await waitUntil { controller.state == .buffering }
+        XCTAssertTrue(buffered, "expected playback to buffer before timeout")
         XCTAssertEqual(controller.state, .buffering)
 
         await preparer.releaseRefill()
-        for _ in 0..<20 { await Task.yield() }
+        let resumed = await waitUntil { controller.state == .playing }
+        XCTAssertTrue(resumed, "expected playback to resume before timeout")
         XCTAssertEqual(controller.state, .playing)
         XCTAssertNotNil(controller.highlightedRange)
     }
@@ -90,6 +92,19 @@ final class AudiobookControllerTests: XCTestCase {
         let newRange = (newText as NSString).range(of: "新会话第一句。")
         XCTAssertEqual(controller.highlightedRange, newRange.location..<NSMaxRange(newRange))
         XCTAssertEqual(playback.currentSentenceRange, newRange.location..<NSMaxRange(newRange))
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        condition: @MainActor () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !condition() {
+            guard clock.now < deadline else { return false }
+            await Task.yield()
+        }
+        return true
     }
 }
 
