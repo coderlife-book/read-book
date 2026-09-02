@@ -70,9 +70,11 @@ bash Tests/ReleasePolicyTests.sh
    ```
 
 4. 推送功能分支并创建指向 `main` 的 PR，禁止直接 push `main`。
-5. 等待 PR 的 `test-build-package` 检查成功；失败时先修复并重新验证，不得绕过检查合并。
-6. PR 通过后再合并到 `main`，优先使用 Squash merge；需要保留多个有意义提交时才使用普通 merge。
-7. 合并后确认 `main` 对应的 `macOS CI` 再次成功；如果本次属于正式发布，还必须确认对应 Release 已创建且目标 SHA 正确。
+5. **PR 默认必须创建为非 Draft（`draft=false`）**。TDD 的 RED 阶段、实现未完成或正在等待 CI，都通过 PR 描述、提交记录和检查状态表达，不得为了表示“未完成”而创建 Draft PR。
+6. 只有用户明确要求 Draft PR 时才允许创建 Draft。当前 GitHub 连接器的 `Draft -> Ready for review` mutation 存在 GraphQL 兼容性问题，因此任何自动化流程都不得依赖“先 Draft、完成后再转 Ready”这一步。
+7. 等待 PR 的 `test-build-package` 检查成功；失败时先修复并重新验证，不得绕过检查合并。
+8. PR 通过后再合并到 `main`，优先使用 Squash merge；需要保留多个有意义提交时才使用普通 merge。
+9. 合并后确认 `main` 对应的 `macOS CI` 再次成功；如果本次属于正式发布，还必须确认对应 Release 已创建且目标 SHA 正确。
 
 建议在 GitHub 为 `main` 开启以下分支保护：
 
