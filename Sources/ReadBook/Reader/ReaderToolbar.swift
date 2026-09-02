@@ -8,34 +8,6 @@ struct ReaderToolbar: View {
     let onLibrary: () -> Void
     let onModeChange: (ReadingMode) -> Void
     let onPin: () -> Void
-    let audiobookState: SpeechPlaybackState?
-    let onAudiobookToggle: () -> Void
-    let speechRate: Double
-    let onSpeechRateChange: (Double) -> Void
-
-    init(
-        title: String,
-        readingMode: ReadingMode,
-        alwaysOnTop: Bool,
-        onLibrary: @escaping () -> Void,
-        onModeChange: @escaping (ReadingMode) -> Void,
-        onPin: @escaping () -> Void,
-        audiobookState: SpeechPlaybackState? = nil,
-        onAudiobookToggle: @escaping () -> Void = {},
-        speechRate: Double = 1.0,
-        onSpeechRateChange: @escaping (Double) -> Void = { _ in }
-    ) {
-        self.title = title
-        self.readingMode = readingMode
-        self.alwaysOnTop = alwaysOnTop
-        self.onLibrary = onLibrary
-        self.onModeChange = onModeChange
-        self.onPin = onPin
-        self.audiobookState = audiobookState
-        self.onAudiobookToggle = onAudiobookToggle
-        self.speechRate = speechRate
-        self.onSpeechRateChange = onSpeechRateChange
-    }
 
     var body: some View {
         ZStack {
@@ -65,31 +37,6 @@ struct ReaderToolbar: View {
                     )
                 }
                 .help(readingMode == .paginated ? "切换到滚动阅读" : "切换到分页阅读")
-
-                if let audiobookState {
-                    Button(action: onAudiobookToggle) {
-                        ToolbarIconLabel(systemName: audiobookState == .playing ? "pause.fill" : "headphones")
-                    }
-                    .help(audiobookState == .playing ? "暂停听书" : "开始听书")
-                }
-
-                Menu {
-                    ForEach(0..<11, id: \.self) { index in
-                        let rate = 0.5 + Double(index) * 0.1
-                        Button {
-                            onSpeechRateChange(rate)
-                        } label: {
-                            HStack {
-                                Text(String(format: "%.1fx", rate))
-                                if abs(rate - speechRate) < 0.001 { Image(systemName: "checkmark") }
-                            }
-                        }
-                    }
-                } label: {
-                    Text(String(format: "%.1fx", speechRate))
-                        .frame(minWidth: 34, minHeight: 30)
-                }
-                .help("听书速度")
 
                 Button(action: onPin) {
                     ToolbarIconLabel(systemName: alwaysOnTop ? "pin.fill" : "pin")

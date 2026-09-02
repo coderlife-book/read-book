@@ -185,15 +185,16 @@ jobs:
           fi
 
           cat > release-notes.md <<EOF
-          ReadBook $TAG 模型下载进度与状态修复。
+          ReadBook $TAG 彻底移除听书功能，恢复轻量阅读体验。
 
-          - 设置页模型下载显示实时速度、已下载容量、总容量和百分比
-          - 修复模型仍在后台下载时，下载状态可能提前消失并重新显示“未安装”的问题
-          - 下载期间重新扫描不会覆盖活动下载状态，并避免同时启动多个模型管理操作
-          - 修复 GitHub Actions/macOS 环境偶发返回无效 0 字节可用容量时被误判为磁盘空间不足的问题
-          - 保留 Hugging Face / HF-compatible 镜像、partial 断点续传和本地模型导入能力
+          - 完全移除听书入口、倍速菜单、选区听书、高亮跟随与相关 UI 状态
+          - 删除本地语音模型下载、导入、扫描、删除、生成、对齐、队列和播放链路
+          - 移除 Qwen/MLX 语音运行时依赖与 Metal 打包资源，减少安装包和运行时负担
+          - 设置页不再包含任何听书、下载源或模型管理选项
+          - 升级后自动清理 ReadBook 自己在 Application Support/ReadBook/Models 下遗留的模型和断点下载文件；不会触碰共享 Hugging Face 缓存
+          - 保留 TXT 阅读、分页/连续滚动、老板模式、窗口与更新功能不变
 
-          说明：语音模型约 3.8 GB，不包含在安装包中。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
+          说明：该版本不再包含听书功能，也不再需要下载或维护任何语音模型。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
           EOF
 
           gh release create "$TAG" \

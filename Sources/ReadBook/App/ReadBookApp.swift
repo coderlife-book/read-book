@@ -17,7 +17,6 @@ struct ReadBookApp: App {
                         await model.session.flush()
                     }
                     appDelegate.cleanupHandler = { @MainActor in
-                        Task { await model.audiobookController?.stop(reason: .applicationTermination) }
                         runtime.stop()
                     }
                     runtime.configureUpdater {

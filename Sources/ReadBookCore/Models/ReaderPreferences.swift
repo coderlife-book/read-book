@@ -20,9 +20,6 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
     public var bossModeProfile: BossModeProfile
     public var windowAppearance: ReaderWindowAppearance
     public var framelessBackgroundOpacity: Double
-    public var speechRate: Double {
-        didSet { speechRate = Self.clampSpeechRate(speechRate) }
-    }
 
     public init(
         readingMode: ReadingMode,
@@ -37,8 +34,7 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         bossModeEnabled: Bool = false,
         bossModeProfile: BossModeProfile = .floatingReading,
         windowAppearance: ReaderWindowAppearance = .card,
-        framelessBackgroundOpacity: Double = 0.18,
-        speechRate: Double = 1.0
+        framelessBackgroundOpacity: Double = 0.18
     ) {
         self.readingMode = readingMode
         self.fontFamily = fontFamily
@@ -53,7 +49,6 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         self.bossModeProfile = bossModeProfile
         self.windowAppearance = windowAppearance
         self.framelessBackgroundOpacity = Self.clampFramelessOpacity(framelessBackgroundOpacity)
-        self.speechRate = Self.clampSpeechRate(speechRate)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -70,7 +65,6 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         case bossModeProfile
         case windowAppearance
         case framelessBackgroundOpacity
-        case speechRate
     }
 
     public init(from decoder: Decoder) throws {
@@ -90,9 +84,6 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         framelessBackgroundOpacity = Self.clampFramelessOpacity(
             try container.decodeIfPresent(Double.self, forKey: .framelessBackgroundOpacity) ?? 0.18
         )
-        speechRate = Self.clampSpeechRate(
-            try container.decodeIfPresent(Double.self, forKey: .speechRate) ?? 1.0
-        )
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -110,15 +101,10 @@ public struct ReaderPreferences: Codable, Equatable, Sendable {
         try container.encode(bossModeProfile, forKey: .bossModeProfile)
         try container.encode(windowAppearance, forKey: .windowAppearance)
         try container.encode(framelessBackgroundOpacity, forKey: .framelessBackgroundOpacity)
-        try container.encode(speechRate, forKey: .speechRate)
     }
 
     private static func clampFramelessOpacity(_ value: Double) -> Double {
         min(max(value, 0), 0.60)
-    }
-
-    private static func clampSpeechRate(_ value: Double) -> Double {
-        min(max(value, 0.5), 1.5)
     }
 
     public static let defaults = ReaderPreferences(
