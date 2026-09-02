@@ -123,6 +123,15 @@ bash Tests/ReleasePolicyTests.sh
 - `publish` 使用 App 内版本号创建不可变的 `v<版本号>` tag 和 GitHub Release。
 - 如果本应发布的 `v<版本号>` 已存在，`publish` 必须失败并提示版本冲突；不得再使用 `exit 0` 静默跳过，否则会产生“main 已更新但 Release 仍是旧包”的假成功状态。
 
+SwiftPM 编译缓存采用“滚动 `main` 基线”，不要改回只由 toolchain + `Package.resolved` 组成的长期固定 key：
+
+- cache key 必须同时包含 toolchain、`Package.resolved` 和一个 `main` commit SHA。
+- PR 恢复其 `base main SHA` 对应的 `.build` 缓存；如果精确缓存不存在，允许回退到同 toolchain/依赖组合下最近的 `main` 缓存。
+- PR 不保存新的 `.build` 缓存，避免 `refs/pull/.../merge` 作用域缓存污染和重复上传。
+- `push -> main` 在成功完成 Release tests 后保存当前 `main SHA` 的新缓存，供之后 PR 增量编译。
+- CI 的 Release tests 使用 `--skip-update --only-use-versions-from-resolved-file --disable-index-store`，避免无意义的依赖更新和 IDE 索引工作；不得通过减少测试覆盖来换取速度。
+- `Tests/CIWorkflowCachePolicyTests.sh` 负责锁定上述规则；调整 cache/workflow 时同步更新并运行它。
+
 这里的两次 CI 不是发布两次：`pull_request -> main` 负责验证候选代码，`push -> main` 才对合并后的提交执行正式打包和发布。文档-only PR（仅修改 `AGENTS.md`、README 或 `docs/`）保留成功的 `test-build-package` 检查但跳过 Swift 测试、编译、打包和签名。代码、测试或 workflow 变更仍完整验证。合并到 `main` 后始终完整构建，但只有 `release_required=true` 才进入正式发布。
 
 Release Notes 的 Bash 兼容性：不要在 `--notes "...\n..."` 中依赖 `\n` 生成换行。Bash 的普通双引号不会解释 `\n`，GitHub 页面会显示字面量 `\n`。应使用 heredoc 写入临时 Markdown 文件，再通过 `gh release create ... --notes-file release-notes.md` 发布。
