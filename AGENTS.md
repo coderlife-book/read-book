@@ -38,6 +38,12 @@ Scripts/build-app.sh
 codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 ```
 
+涉及发布流程时，还要运行：
+
+```bash
+bash Tests/ReleasePolicyTests.sh
+```
+
 涉及窗口交互时，需要针对受影响行为做人工验证，包括：
 
 - 顶部显示与隐藏
@@ -60,13 +66,13 @@ codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
    ```text
    fix(window): 修复顶部拖动区域事件
    feat(reader): 增加连续滚动模式
-   chore(release): 准备 v0.2.0 发布
+   chore(release): 准备 v0.2.1 发布
    ```
 
 4. 推送功能分支并创建指向 `main` 的 PR，禁止直接 push `main`。
 5. 等待 PR 的 `test-build-package` 检查成功；失败时先修复并重新验证，不得绕过检查合并。
 6. PR 通过后再合并到 `main`，优先使用 Squash merge；需要保留多个有意义提交时才使用普通 merge。
-7. 合并后确认 `main` 对应的 `macOS CI` 再次成功。
+7. 合并后确认 `main` 对应的 `macOS CI` 再次成功；如果本次属于正式发布，还必须确认对应 Release 已创建且目标 SHA 正确。
 
 建议在 GitHub 为 `main` 开启以下分支保护：
 
@@ -76,33 +82,60 @@ codesign --verify --deep --strict --verbose=4 dist/ReadBook.app
 - 禁止 force push 和删除分支
 - 个人项目可以暂不要求人工 Review，但不得取消 CI 门禁
 
+## 版本与发布门禁
+
+任何会改变用户实际运行 App 的 PR，都必须在同一个 PR 中同步更新版本号和 Build Number，不能先把功能合并进 `main`、再补一个版本 PR。
+
+当前 CI 将以下路径视为“需要发布”的用户产物变更：
+
+- `Sources/**`
+- `DesignAssets/**`
+- `Package.swift`
+- `Package.resolved`
+- `Scripts/build-app.sh`
+- `Scripts/render-branding.swift`
+
+只修改以下维护类内容时，不要求升版本：
+
+- `.github/**`
+- `Tests/**`
+- `AGENTS.md`
+- `README.md`
+- `docs/**`
+- `.gitignore` 等不会改变 App 产物的仓库维护文件
+
+版本规则：
+
+1. 用户产物变更必须修改 `Scripts/build-app.sh` 中的默认 `APP_VERSION` 和 `APP_BUILD`。
+2. `APP_VERSION` 必须相对 PR base 严格递增，使用数字三段式版本，例如 `0.2.0 -> 0.2.1`。
+3. `APP_BUILD` 也必须严格递增，例如 `12 -> 13`。
+4. 同一个 PR 必须同步更新 workflow 中的 Release Notes，只描述该版本实际包含的用户可见变化。
+5. `Scripts/check-release-policy.sh` 是版本门禁的单一实现；`Tests/ReleasePolicyTests.sh` 必须覆盖维护改动、漏升版本、漏升 Build 和合法发布四类情况。
+6. PR CI 在编译前执行发布门禁；用户产物变更如果没有正确升版本，`test-build-package` 必须直接失败，禁止合并。
+
 ## CI 与发布流程
 
 当前 `.github/workflows/bootstrap-readbook.yml` 同时处理 PR 验证和 `main` 发布：
 
-- `pull_request -> main`：执行测试、构建、打包、签名与校验，只上传临时 Artifact，不发布 Release。
-- `push -> main`：重新执行同一套验证。
-- 只有 `main` 的 `test-build-package` 成功后，`publish` Job 才能运行。
-- `publish` 使用 App 内版本号创建不可变的 `v<版本号>` tag 和 GitHub Release；已有 tag 不覆盖。
+- `pull_request -> main`：执行发布策略检查；需要构建时执行测试、构建、打包、签名与校验，只上传临时 Artifact，不发布 Release。
+- `push -> main`：重新执行同一套验证，并重新判断本次提交是否需要发布。
+- `.github/**`、`Tests/**` 等维护改动可以完整跑 CI，但 `release_required=false`，不会创建 GitHub Release。
+- 只有用户产物变更且 `main` 的 `test-build-package` 成功后，`publish` Job 才运行。
+- `publish` 使用 App 内版本号创建不可变的 `v<版本号>` tag 和 GitHub Release。
+- 如果本应发布的 `v<版本号>` 已存在，`publish` 必须失败并提示版本冲突；不得再使用 `exit 0` 静默跳过，否则会产生“main 已更新但 Release 仍是旧包”的假成功状态。
 
-这里的两次 CI 不是发布两次：`pull_request -> main` 负责验证候选代码，`push -> main` 才对合并后的提交执行正式打包和发布。文档-only PR（仅修改 `AGENTS.md`、README 或 `docs/`）保留成功的 `test-build-package` 检查但跳过 Swift 测试、编译、打包和签名；代码或 workflow 变更仍完整验证。合并到 `main` 后始终完整构建，确保正式产物来自最终的 `main` 提交。
+这里的两次 CI 不是发布两次：`pull_request -> main` 负责验证候选代码，`push -> main` 才对合并后的提交执行正式打包和发布。文档-only PR（仅修改 `AGENTS.md`、README 或 `docs/`）保留成功的 `test-build-package` 检查但跳过 Swift 测试、编译、打包和签名。代码、测试或 workflow 变更仍完整验证。合并到 `main` 后始终完整构建，但只有 `release_required=true` 才进入正式发布。
 
 Release Notes 的 Bash 兼容性：不要在 `--notes "...\n..."` 中依赖 `\n` 生成换行。Bash 的普通双引号不会解释 `\n`，GitHub 页面会显示字面量 `\n`。应使用 heredoc 写入临时 Markdown 文件，再通过 `gh release create ... --notes-file release-notes.md` 发布。
 
-普通功能 PR：
+正式发布流程：
 
-- 不修改 `Scripts/build-app.sh` 中的版本号和 Build Number。
-- 合并后因为对应版本 Release 已存在，workflow 不会覆盖历史产物。
-
-正式 Release PR：
-
-1. 确认待发布功能和修复已经进入发布分支，或将版本准备与最终改动放在同一个 PR 中验证。
-2. 更新 `Scripts/build-app.sh` 的 `APP_VERSION` 和 `APP_BUILD`；两者都必须递增。
-3. 更新 workflow 中对应版本的 Release Notes，内容只描述本次发布。
-4. 本地完成测试、Release 构建、签名和产物校验。
-5. 创建 Release PR，等待 PR CI 成功后合并。
-6. 合并后等待 `main` CI 成功，由 `publish` 自动创建 tag 和 GitHub Release。
-7. 最终核验 Release 的目标 SHA、ZIP、`.sha256` 文件以及下载包 SHA-256。
+1. 在用户产物变更 PR 中同时更新功能代码、`APP_VERSION`、`APP_BUILD` 和 Release Notes。
+2. 运行 `bash Tests/ReleasePolicyTests.sh`，确认版本策略测试通过。
+3. 完成本地测试、Release 构建、签名和产物校验。
+4. 创建 PR，等待 `test-build-package` 成功；版本未递增时 CI 应在编译前失败。
+5. 合并后等待 `main` CI 成功，由 `publish` 自动创建新 tag 和 GitHub Release。
+6. 最终核验 Release 的目标 SHA、ZIP、`.sha256` 文件以及下载包 SHA-256。
 
 除非用户明确要求，不手动创建 tag、覆盖 Release 或跳过 workflow 发布。
 
