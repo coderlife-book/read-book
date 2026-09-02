@@ -28,8 +28,10 @@ jobs:
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             BASE_SHA="$PUSH_BASE_SHA"
+            echo "cache_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           else
             BASE_SHA="$PR_BASE_SHA"
+            echo "cache_sha=$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
           fi
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
@@ -84,14 +86,21 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: .build
-          key: readbook-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.resolved') }}
+          key: readbook-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.resolved') }}-main-${{ steps.change_scope.outputs.cache_sha }}
+          restore-keys: |
+            readbook-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.resolved') }}-main-
+            readbook-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.resolved') }}
 
       - name: Test
         if: steps.change_scope.outputs.needs_build == 'true'
-        run: swift test -c release
+        run: >-
+          swift test -c release
+          --skip-update
+          --only-use-versions-from-resolved-file
+          --disable-index-store
 
       - name: Save SwiftPM build cache
-        if: steps.change_scope.outputs.needs_build == 'true' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        if: steps.change_scope.outputs.needs_build == 'true' && github.event_name == 'push' && steps.swiftpm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
           path: .build
