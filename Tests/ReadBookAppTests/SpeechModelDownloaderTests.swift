@@ -20,6 +20,22 @@ final class SpeechModelDownloaderTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.partialRoot.path))
     }
 
+    func testMissingContentLengthKeepsResumeDownloadWorking() async throws {
+        let transport = UnknownLengthSpeechDownloadTransport(body: Data("def".utf8))
+        let fixture = try SpeechDownloadFixture(partialBytes: Data("abc".utf8))
+        let downloader = SpeechModelDownloader(transport: transport)
+
+        let installed = try await downloader.download(fixture.descriptor, to: fixture.modelsRoot) { _ in }
+
+        let requestedOffsets = await transport.requestedOffsets
+        XCTAssertEqual(requestedOffsets, [3])
+        XCTAssertEqual(
+            try Data(contentsOf: installed.appendingPathComponent("model.safetensors")),
+            Data("abcdef".utf8)
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.partialRoot.path))
+    }
+
     func testCancellationLeavesPartialFileForResume() async throws {
         let transport = CancellingSpeechDownloadTransport()
         let fixture = try SpeechDownloadFixture(partialBytes: Data("abc".utf8))
@@ -80,6 +96,27 @@ private actor RecordingSpeechDownloadTransport: SpeechDownloadTransport {
     }
 
     func contentLength(for url: URL) async throws -> Int64 { total }
+
+    func bytes(for url: URL, startingAt offset: Int64) async throws -> AsyncThrowingStream<Data, Error> {
+        requestedOffsets.append(offset)
+        return AsyncThrowingStream { continuation in
+            continuation.yield(body)
+            continuation.finish()
+        }
+    }
+}
+
+private actor UnknownLengthSpeechDownloadTransport: SpeechDownloadTransport {
+    let body: Data
+    private(set) var requestedOffsets: [Int64] = []
+
+    init(body: Data) {
+        self.body = body
+    }
+
+    func contentLength(for url: URL) async throws -> Int64 {
+        throw SpeechModelDownloadError.invalidContentLength(url.lastPathComponent)
+    }
 
     func bytes(for url: URL, startingAt offset: Int64) async throws -> AsyncThrowingStream<Data, Error> {
         requestedOffsets.append(offset)
