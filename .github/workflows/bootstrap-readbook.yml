@@ -41,6 +41,10 @@ jobs:
           done < "$changed_files"
           echo "needs_build=$needs_build" >> "$GITHUB_OUTPUT"
 
+      - name: Release policy tests
+        if: steps.change_scope.outputs.needs_build == 'true'
+        run: bash Tests/ReleasePolicyTests.sh
+
       - name: Documentation-only change
         if: steps.change_scope.outputs.needs_build != 'true'
         run: echo "Documentation-only change; skipping build and package steps."
