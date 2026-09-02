@@ -58,4 +58,11 @@ enum SpeechModelCatalog {
     )
 
     static let all = [tts, aligner]
+
+    static func descriptor(for kind: SpeechModelKind) -> SpeechModelDescriptor {
+        switch kind {
+        case .tts: tts
+        case .aligner: aligner
+        }
+    }
 }

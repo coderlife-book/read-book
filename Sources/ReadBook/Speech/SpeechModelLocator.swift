@@ -23,7 +23,7 @@ struct SpeechModelLocator: Sendable {
         let owned = ownedRoot
             .appendingPathComponent(descriptor.kind.rawValue, isDirectory: true)
             .appendingPathComponent(descriptor.revision, isDirectory: true)
-        if try isValidSnapshot(owned, descriptor: descriptor) {
+        if try validateSnapshot(owned, descriptor: descriptor) {
             return owned
         }
 
@@ -32,7 +32,7 @@ struct SpeechModelLocator: Sendable {
                 .appendingPathComponent(descriptor.huggingFaceCacheName, isDirectory: true)
                 .appendingPathComponent("snapshots", isDirectory: true)
                 .appendingPathComponent(descriptor.revision, isDirectory: true)
-            if try isValidSnapshot(snapshot, descriptor: descriptor) {
+            if try validateSnapshot(snapshot, descriptor: descriptor) {
                 return snapshot
             }
         }
@@ -46,7 +46,7 @@ struct SpeechModelLocator: Sendable {
         )
     }
 
-    private func isValidSnapshot(
+    func validateSnapshot(
         _ snapshot: URL,
         descriptor: SpeechModelDescriptor
     ) throws -> Bool {
