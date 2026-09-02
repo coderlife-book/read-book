@@ -55,8 +55,9 @@ final class SpeechModelManagementExtensionsTests: XCTestCase {
         let modelsRoot = root.appendingPathComponent("Models", isDirectory: true)
         let source = root.appendingPathComponent("DownloadedTTS", isDirectory: true)
         try writeValidSnapshot(SpeechModelCatalog.tts, to: source)
+        let locator = SpeechModelLocator(ownedRoot: modelsRoot, externalHubRoots: [])
         let manager = SpeechModelManager(
-            locator: SpeechModelLocator(ownedRoot: modelsRoot, externalHubRoots: []),
+            locator: locator,
             downloader: SpeechModelDownloader(transport: ModelManagementRecordingTransport(total: 1, body: Data())),
             stopper: ModelManagementStopper(),
             modelsRoot: modelsRoot
@@ -69,7 +70,7 @@ final class SpeechModelManagementExtensionsTests: XCTestCase {
             .appendingPathComponent("tts", isDirectory: true)
             .appendingPathComponent(SpeechModelCatalog.tts.revision, isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: installed.appendingPathComponent("config.json").path))
-        XCTAssertTrue(try manager.locatorForTesting.validateSnapshot(installed, descriptor: SpeechModelCatalog.tts))
+        XCTAssertTrue(try locator.validateSnapshot(installed, descriptor: SpeechModelCatalog.tts))
     }
 
     func testManagerSurfacesTimeoutReason() async throws {
