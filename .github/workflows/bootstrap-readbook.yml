@@ -16,6 +16,8 @@ jobs:
       version: ${{ steps.package_meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Determine change scope
         id: change_scope
@@ -27,13 +29,16 @@ jobs:
             exit 0
           fi
 
+          changed_files="$RUNNER_TEMP/readbook-changed-files"
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" > "$changed_files"
+
           needs_build=false
           while IFS= read -r file; do
             case "$file" in
               AGENTS.md|README.md|docs/*) ;;
               *) needs_build=true; break ;;
             esac
-          done < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")
+          done < "$changed_files"
           echo "needs_build=$needs_build" >> "$GITHUB_OUTPUT"
 
       - name: Documentation-only change
@@ -130,14 +135,14 @@ jobs:
           fi
 
           cat > release-notes.md <<EOF
-          ReadBook $TAG 窗口交互与自动更新可靠性修复版本。
+          ReadBook $TAG 本地听书版本。
 
-          - 修复阅读窗口顶部拖动区域和工具栏按钮光标交互
-          - 保持原生 Resize，统一卡片圆角并消除阴影月牙
-          - 增加更新包校验状态、阅读进度保存超时保护和安装失败重启
-          - 补充窗口与自动更新回归测试
+          - 增加完全本地的中文听书、句子高亮和选区起播
+          - 使用 Serena 声线，支持 0.5x 至 1.5x 倍速和暂停恢复
+          - 首次使用时按需下载固定版本的 TTS 与对齐模型，普通阅读不加载模型
+          - 设置页可查看、下载和删除听书模型
 
-          说明：当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization。首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
+          说明：语音模型约 3.8 GB，不包含在安装包中，首次使用听书时按提示下载。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
           EOF
 
           gh release create "$TAG" \
