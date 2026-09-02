@@ -20,8 +20,25 @@ enum UpdateControllerError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .flushTimedOut:
-            "保存阅读进度超时，未开始替换当前应用。请稍后重试。"
+            "保存阅读进度超时。更新会继续安装，最多可能丢失最后少量未落盘的阅读进度。"
         }
+    }
+}
+
+@MainActor
+private final class UpdateFlushGate {
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var finished = false
+
+    func install(_ continuation: CheckedContinuation<Void, Error>) {
+        self.continuation = continuation
+    }
+
+    func finish(_ result: Result<Void, Error>) {
+        guard !finished, let continuation else { return }
+        finished = true
+        self.continuation = nil
+        continuation.resume(with: result)
     }
 }
 
@@ -138,7 +155,12 @@ final class UpdateController {
             )
 
             state = .installing(latest)
-            try await flushForUpdate()
+            do {
+                try await flushForUpdate()
+            } catch UpdateControllerError.flushTimedOut {
+                // Reading progress is already debounced. Do not hold a verified
+                // application update hostage to one final non-cooperative save.
+            }
             try installer.launchReplacementHelper(helper)
             terminateHandler()
         } catch {
@@ -159,16 +181,24 @@ final class UpdateController {
     func flushForUpdate() async throws {
         let timeout = flushTimeout
         let flush = flushHandler
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
+        let gate = UpdateFlushGate()
+
+        try await withCheckedThrowingContinuation { continuation in
+            gate.install(continuation)
+
+            Task { @MainActor in
                 await flush()
+                gate.finish(.success(()))
             }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw UpdateControllerError.flushTimedOut
+
+            Task { @MainActor in
+                do {
+                    try await Task.sleep(for: timeout)
+                } catch {
+                    return
+                }
+                gate.finish(.failure(UpdateControllerError.flushTimedOut))
             }
-            defer { group.cancelAll() }
-            try await group.next()
         }
     }
 

@@ -78,8 +78,13 @@ final class AudiobookControllerTests: XCTestCase {
 
         await fixture.controller.startFromReadingPosition(text: fixture.text)
         fixture.playback.complete(sentences: 1)
-        for _ in 0..<8 { await Task.yield() }
+        let stopped = await waitUntil {
+            fixture.controller.state == .idle
+                && fixture.controller.highlightedRange == nil
+                && fixture.playback.state == .idle
+        }
 
+        XCTAssertTrue(stopped, "expected final sentence completion to reach idle before timeout")
         XCTAssertEqual(fixture.controller.state, .idle)
         XCTAssertNil(fixture.controller.highlightedRange)
         XCTAssertEqual(fixture.playback.state, .idle)

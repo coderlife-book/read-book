@@ -72,9 +72,10 @@ bash Tests/ReleasePolicyTests.sh
 4. 推送功能分支并创建指向 `main` 的 PR，禁止直接 push `main`。
 5. **PR 默认必须创建为非 Draft（`draft=false`）**。TDD 的 RED 阶段、实现未完成或正在等待 CI，都通过 PR 描述、提交记录和检查状态表达，不得为了表示“未完成”而创建 Draft PR。
 6. 只有用户明确要求 Draft PR 时才允许创建 Draft。当前 GitHub 连接器的 `Draft -> Ready for review` mutation 存在 GraphQL 兼容性问题，因此任何自动化流程都不得依赖“先 Draft、完成后再转 Ready”这一步。
-7. 等待 PR 的 `test-build-package` 检查成功；失败时先修复并重新验证，不得绕过检查合并。
-8. PR 通过后再合并到 `main`，优先使用 Squash merge；需要保留多个有意义提交时才使用普通 merge。
-9. 合并后确认 `main` 对应的 `macOS CI` 再次成功；如果本次属于正式发布，还必须确认对应 Release 已创建且目标 SHA 正确。
+7. 等待 PR 的 `test-build-package` 检查成功；失败时先定位、修复并重新验证，不得绕过检查合并，也不需要因为普通 CI/工程失败中断流程等待用户确认。
+8. PR 满足既定需求、没有阻塞级 review 问题且 `test-build-package` 成功后，**默认自动 Squash merge 到 `main`，不再额外等待用户逐次授权**；只有确有必要保留多个有意义提交时才使用普通 merge。
+9. 合并后自动继续跟踪 `main` 对应的 `macOS CI`。如果本次属于正式发布，继续跟踪直到对应 Release 创建完成，并核对目标 SHA、ZIP、`.sha256` 与 checksum；无需用户再发送“继续”“合并”“发布”等中间确认。
+10. 只有遇到以下情况才暂停并请求用户决策：需求存在会显著改变结果的关键歧义；需要覆盖/删除已有 tag 或 Release；需要 force push、改写共享历史或绕过 CI；涉及付费、凭证、外部账号授权或其他明显不可逆/高影响操作。
 
 建议在 GitHub 为 `main` 开启以下分支保护：
 
@@ -132,14 +133,15 @@ Release Notes 的 Bash 兼容性：不要在 `--notes "...\n..."` 中依赖 `\n`
 2. 运行 `bash Tests/ReleasePolicyTests.sh`，确认版本策略测试通过。
 3. 完成本地测试、Release 构建、签名和产物校验。
 4. 创建 PR，等待 `test-build-package` 成功；版本未递增时 CI 应在编译前失败。
-5. 合并后等待 `main` CI 成功，由 `publish` 自动创建新 tag 和 GitHub Release。
-6. 最终核验 Release 的目标 SHA、ZIP、`.sha256` 文件以及下载包 SHA-256。
+5. `test-build-package` 成功后默认自动合并；合并后等待 `main` CI 成功，由 `publish` 自动创建新 tag 和 GitHub Release。
+6. 自动核验 Release 的目标 SHA、ZIP、`.sha256` 文件以及下载包 SHA-256；确认发布链路完成后再向用户汇报最终结果。
 
-除非用户明确要求，不手动创建 tag、覆盖 Release 或跳过 workflow 发布。
+除非用户明确要求，不手动创建或覆盖 tag/Release，也不跳过 workflow 发布；正常的自动发布应始终由 `main` workflow 完成。
 
 ## 工作区安全
 
 - 工作区可能包含用户未提交的改动；不要撤销、覆盖或提交无关变更。
 - 禁止使用 `git reset --hard`、`git checkout --` 等破坏性命令处理用户改动。
-- 未经用户明确要求，不向远端推送、不合并 PR、不创建 tag 或发布 Release。
-- 完成实现后报告改动文件、验证结果、当前分支，以及尚未执行的远端操作。
+- 用户一旦批准当前开发任务，默认授权在该任务范围内执行：推送任务分支、创建/更新 PR、在 CI 全绿且无阻塞问题后合并 PR，以及跟踪正常的 workflow 自动发布；这些步骤不再逐项请求确认。
+- 仍然禁止直接 push `main`、force push、改写共享历史、绕过必选检查，以及覆盖/删除已有 tag 或 Release；这类操作必须单独取得用户确认。
+- 完成实现后报告改动文件、验证结果、最终 `main` 状态和 Release 状态，不再把“尚未执行的常规远端操作”留给用户手动确认。
