@@ -46,22 +46,43 @@ jobs:
         run: echo "Documentation-only change; skipping build and package steps."
 
       - name: Toolchain
+        id: toolchain
         if: steps.change_scope.outputs.needs_build == 'true'
         run: |
           sw_vers
           xcodebuild -version
           swift --version
 
+          toolchain_key="$({
+            sw_vers -productVersion
+            xcodebuild -version
+            swift --version
+          } | shasum -a 256 | cut -d ' ' -f 1)"
+          echo "cache-key=$toolchain_key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore SwiftPM build cache
+        id: swiftpm-cache
+        if: steps.change_scope.outputs.needs_build == 'true'
+        uses: actions/cache/restore@v5
+        with:
+          path: .build
+          key: readbook-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.cache-key }}-${{ hashFiles('Package.resolved') }}
+
       - name: Test
         if: steps.change_scope.outputs.needs_build == 'true'
-        run: swift test
+        run: swift test -c release
 
-      - name: Build
-        if: steps.change_scope.outputs.needs_build == 'true'
-        run: swift build
+      - name: Save SwiftPM build cache
+        if: steps.change_scope.outputs.needs_build == 'true' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: .build
+          key: ${{ steps.swiftpm-cache.outputs.cache-primary-key }}
 
       - name: Package local app bundle
         if: steps.change_scope.outputs.needs_build == 'true'
+        env:
+          READBOOK_SKIP_BUILD: "1"
         run: Scripts/build-app.sh
 
       - name: Verify packaged app signature
