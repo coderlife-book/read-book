@@ -69,6 +69,21 @@ set -e
 [[ $status -ne 0 ]] || fail "product change without version bump should fail"
 assert_contains "$output" "APP_VERSION must increase"
 
+# Unknown non-maintenance paths default to release-impacting, so new resource roots cannot bypass the guard.
+repo="$TMP/unknown-product-path"
+new_repo "$repo"
+base="$(git -C "$repo" rev-parse HEAD)"
+mkdir -p "$repo/Resources"
+echo 'resource' > "$repo/Resources/AppResource.txt"
+git -C "$repo" add . && git -C "$repo" commit -qm resource
+head="$(git -C "$repo" rev-parse HEAD)"
+set +e
+output="$(run_policy "$repo" "$base" "$head" 2>&1)"
+status=$?
+set -e
+[[ $status -ne 0 ]] || fail "unknown non-maintenance path should require a release"
+assert_contains "$output" "APP_VERSION must increase"
+
 # Version bump without build bump must fail.
 repo="$TMP/no-build-bump"
 new_repo "$repo"
