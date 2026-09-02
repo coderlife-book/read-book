@@ -129,7 +129,7 @@ SwiftPM 编译缓存采用“滚动 `main` 基线”，不要改回只由 toolch
 - PR 恢复其 `base main SHA` 对应的 `.build` 缓存；如果精确缓存不存在，允许回退到同 toolchain/依赖组合下最近的 `main` 缓存。
 - PR 不保存新的 `.build` 缓存，避免 `refs/pull/.../merge` 作用域缓存污染和重复上传。
 - `push -> main` 在成功完成 Release tests 后保存当前 `main SHA` 的新缓存，供之后 PR 增量编译。
-- CI 的 Release tests 使用 `--skip-update --only-use-versions-from-resolved-file --disable-index-store`，避免无意义的依赖更新和 IDE 索引工作；不得通过减少测试覆盖来换取速度。
+- CI 的 Release tests 使用 `--only-use-versions-from-resolved-file --disable-index-store`，固定 `Package.resolved` 并关闭无意义的 IDE 索引工作；不得通过减少测试覆盖来换取速度。`--skip-update` 在当前 SwiftPM 已废弃，不要重新加入。
 - `Tests/CIWorkflowCachePolicyTests.sh` 负责锁定上述规则；调整 cache/workflow 时同步更新并运行它。
 
 这里的两次 CI 不是发布两次：`pull_request -> main` 负责验证候选代码，`push -> main` 才对合并后的提交执行正式打包和发布。文档-only PR（仅修改 `AGENTS.md`、README 或 `docs/`）保留成功的 `test-build-package` 检查但跳过 Swift 测试、编译、打包和签名。代码、测试或 workflow 变更仍完整验证。合并到 `main` 后始终完整构建，但只有 `release_required=true` 才进入正式发布。
