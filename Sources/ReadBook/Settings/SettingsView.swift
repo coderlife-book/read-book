@@ -198,13 +198,13 @@ struct SettingsView: View {
                             Button(modelDownloadButtonTitle) {
                                 startModelDownload(row.kind)
                             }
-                            .disabled(row.isInstalled || row.isDownloading)
+                            .disabled(row.isInstalled || anyModelIsDownloading)
 
                             Button("导入本地模型…") {
                                 modelImportKind = row.kind
                                 isModelImportPresented = true
                             }
-                            .disabled(row.isDownloading)
+                            .disabled(anyModelIsDownloading)
                         }
                     }
                     .padding(.vertical, 3)
@@ -216,13 +216,14 @@ struct SettingsView: View {
                     }
                     .disabled(
                         model.audiobookInstalledKinds.count == SpeechModelKind.allCases.count
-                        || model.audiobookModelRows.contains(where: \.isDownloading)
+                        || anyModelIsDownloading
                     )
 
                     Button("重新扫描本地模型") {
                         localModelManagementError = nil
                         Task { await model.discoverAudiobookModels() }
                     }
+                    .disabled(anyModelIsDownloading)
                 }
 
                 if let error = modelManagementError {
@@ -235,7 +236,7 @@ struct SettingsView: View {
                 Button("删除听书模型", role: .destructive) {
                     isDeleteModelConfirmationPresented = true
                 }
-                .disabled(model.audiobookInstalledKinds.isEmpty)
+                .disabled(model.audiobookInstalledKinds.isEmpty || anyModelIsDownloading)
 
                 Text("支持自动识别 Hugging Face 缓存，也可手动下载后导入模型目录。当前仅支持上面两套固定 Qwen 模型与指定 revision，不支持任意 TTS 架构。")
                     .font(.caption)
@@ -298,6 +299,10 @@ struct SettingsView: View {
                   url.host != nil else { return nil }
             return SpeechModelDownloadSource(baseURL: url)
         }
+    }
+
+    private var anyModelIsDownloading: Bool {
+        model.audiobookModelRows.contains(where: \.isDownloading)
     }
 
     private var modelDownloadButtonTitle: String {
@@ -384,12 +389,9 @@ struct SettingsView: View {
             HStack(spacing: 4) {
                 ProgressView()
                     .controlSize(.small)
-                if let fraction = row.progressFraction {
-                    Text("\(Int((fraction * 100).rounded()))%")
-                        .monospacedDigit()
-                } else {
-                    Text("下载中")
-                }
+                Text(row.downloadProgressDescription ?? "下载中")
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
