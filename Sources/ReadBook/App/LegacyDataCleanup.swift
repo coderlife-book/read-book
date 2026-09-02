@@ -3,14 +3,24 @@ import ReadBookCore
 
 enum LegacyDataCleanup {
     static func run() {
-        let defaults = UserDefaults.standard
+        clearLegacyPreferences(in: .standard)
+        let root = AppPaths().root
+        _ = Task.detached(priority: .utility) {
+            removeReadBookOwnedLegacyFiles(at: root)
+        }
+    }
+
+    static func clearLegacyPreferences(in defaults: UserDefaults) {
         defaults.removeObject(forKey: "speechModelDownloadSourceMode")
         defaults.removeObject(forKey: "speechModelCustomMirrorURL")
+    }
 
-        let legacyModelsRoot = AppPaths().root.appendingPathComponent("Models", isDirectory: true)
-        _ = Task.detached(priority: .utility) {
-            guard FileManager.default.fileExists(atPath: legacyModelsRoot.path) else { return }
-            try? FileManager.default.removeItem(at: legacyModelsRoot)
-        }
+    static func removeReadBookOwnedLegacyFiles(
+        at root: URL,
+        fileManager: FileManager = .default
+    ) {
+        let legacyModelsRoot = root.appendingPathComponent("Models", isDirectory: true)
+        guard fileManager.fileExists(atPath: legacyModelsRoot.path) else { return }
+        try? fileManager.removeItem(at: legacyModelsRoot)
     }
 }
