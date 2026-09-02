@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Benchmark-only change: forces the normal PR CI path without changing app code.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/bootstrap-readbook.yml"
 
