@@ -112,4 +112,6 @@ head="$(git -C "$repo" rev-parse HEAD)"
 run_policy "$repo" "$base" "$head"
 grep -qx 'release_required=true' "$repo/github-output" || fail "valid product change should require release"
 
+bash "$ROOT/Tests/CIWorkflowCachePolicyTests.sh"
+
 echo "Release policy tests passed."
