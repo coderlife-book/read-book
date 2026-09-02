@@ -247,7 +247,8 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
                         totalBytes: totalBytes
                     ))
                 }
-            } else if !fileManager.fileExists(atPath: partialFile.path) {
+            }
+            if !fileManager.fileExists(atPath: partialFile.path) {
                 try Data().write(to: partialFile)
             }
 
