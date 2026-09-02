@@ -68,9 +68,23 @@ public struct SentenceSegmenter: Sendable {
                       cursor + 1 < source.length,
                       source.character(at: cursor + 1) == 0x2026 {
                 sentenceEnd = cursor + 2
+            } else if unit == 0x000A || unit == 0x000D {
+                sentenceEnd = cursor
             }
 
             if var end = sentenceEnd {
+                while end < source.length {
+                    let next = source.character(at: end)
+                    if Self.terminators.contains(next) {
+                        end += 1
+                    } else if next == 0x2026,
+                              end + 1 < source.length,
+                              source.character(at: end + 1) == 0x2026 {
+                        end += 2
+                    } else {
+                        break
+                    }
+                }
                 while end < source.length, Self.trailingClosers.contains(source.character(at: end)) {
                     end += 1
                 }

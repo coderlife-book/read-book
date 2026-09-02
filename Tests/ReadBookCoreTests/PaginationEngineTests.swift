@@ -9,25 +9,6 @@ final class PaginationEngineTests: XCTestCase {
     }
 
     #if canImport(AppKit)
-    func testLineSpacingIsDistributedAroundTextBaseline() throws {
-        let style = ReaderTextStyle(
-            fontFamily: "PingFang SC",
-            fontSize: 17,
-            lineSpacing: 8,
-            paragraphSpacing: 9,
-            horizontalPadding: 22,
-            verticalPadding: 20
-        )
-
-        let attributed = PaginationEngine().attributedString("正文", style: style)
-        let attributes = attributed.attributes(at: 0, effectiveRange: nil)
-        let paragraph = try XCTUnwrap(attributes[.paragraphStyle] as? NSParagraphStyle)
-        let baselineOffset = try XCTUnwrap(attributes[.baselineOffset] as? NSNumber)
-
-        XCTAssertEqual(paragraph.lineSpacing, 4, accuracy: 0.001)
-        XCTAssertEqual(baselineOffset.doubleValue, -4, accuracy: 0.001)
-    }
-
     func testForwardPagesAreContinuousAndBounded() throws {
         let text = NSString(string: String(repeating: "第一段文字。第二段文字。\n", count: 500))
         let engine = PaginationEngine()

@@ -65,4 +65,17 @@ final class SentenceSegmenterTests: XCTestCase {
         XCTAssertEqual(result.first?.text, "👨‍👩‍👧‍👦出发。")
         XCTAssertEqual(result.first?.utf16Range.lowerBound, (text as NSString).range(of: "👨‍👩‍👧‍👦").location)
     }
+
+    func testNewlinesAndConsecutiveTerminatorsEndOneSentence() {
+        let text = "没有标点的第一行\n第二行？！\n第三行！！"
+
+        let result = SentenceSegmenter().sentences(
+            in: text,
+            startingAt: 0,
+            policy: .containingSentence,
+            limit: 10
+        )
+
+        XCTAssertEqual(result.map(\.text), ["没有标点的第一行", "第二行？！", "第三行！！"])
+    }
 }

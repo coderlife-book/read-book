@@ -234,8 +234,9 @@ final class AppModel {
     private func configureAudiobook(_ locations: SpeechModelLocations) {
         let controller = audiobookFactory(locations)
         controller.onPositionChange = { [weak self] position in
-            self?.updatePosition(position)
+            self?.session.updatePosition(position)
         }
+        controller.setRate(preferences.speechRate)
         audiobookController = controller
     }
 

@@ -37,6 +37,7 @@ struct PagedTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSTextView, context: Context) {
+        context.coordinator.updateLineSpacing(style.lineSpacing)
         let engine = PaginationEngine()
         let attributed = NSMutableAttributedString(
             attributedString: engine.attributedString(text, style: style)
@@ -59,6 +60,7 @@ struct PagedTextView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         var onSelectionChanged: (NSRange) -> Void
+        private let textLayoutDelegate = ReaderTextLayoutDelegate()
         private weak var view: NSTextView?
         private var observer: NSObjectProtocol?
 
@@ -68,6 +70,7 @@ struct PagedTextView: NSViewRepresentable {
 
         func attach(_ view: NSTextView) {
             self.view = view
+            view.layoutManager?.delegate = textLayoutDelegate
             observer = NotificationCenter.default.addObserver(
                 forName: NSTextView.didChangeSelectionNotification,
                 object: view,
@@ -78,6 +81,10 @@ struct PagedTextView: NSViewRepresentable {
                     self.onSelectionChanged(range)
                 }
             }
+        }
+
+        func updateLineSpacing(_ lineSpacing: Double) {
+            textLayoutDelegate.lineSpacing = lineSpacing
         }
 
     }

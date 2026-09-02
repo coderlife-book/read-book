@@ -34,6 +34,96 @@ final class AudiobookControllerTests: XCTestCase {
         XCTAssertTrue(callCount > 1)
         XCTAssertTrue((10...30).contains(count))
     }
+
+    func testFirstSentenceStartsBeforeBackgroundRefill() async {
+        let fixture = AudiobookFixture(sentenceCount: 20)
+
+        await fixture.controller.startFromReadingPosition(text: fixture.text)
+
+        let blocks = await fixture.preparer.blocks
+        XCTAssertEqual(blocks.first?.sentences.count, 1)
+        XCTAssertEqual(fixture.playback.state, .playing)
+    }
+
+    func testQueueExhaustionBuffersThenAutomaticallyResumes() async throws {
+        let preparer = ControlledRefillPreparer()
+        let playback = RecordingPlayback()
+        let controller = AudiobookController(preparer: preparer, playback: playback)
+        let text = "第一句。第二句。第三句。"
+
+        await controller.startFromReadingPosition(text: text)
+        playback.complete(sentences: 1)
+        for _ in 0..<8 { await Task.yield() }
+        XCTAssertEqual(controller.state, .buffering)
+
+        await preparer.releaseRefill()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(controller.state, .playing)
+        XCTAssertNotNil(controller.highlightedRange)
+    }
+
+    func testFinishingLastSentenceClearsHighlightAndStops() async {
+        let fixture = AudiobookFixture(text: "只有一句。")
+
+        await fixture.controller.startFromReadingPosition(text: fixture.text)
+        fixture.playback.complete(sentences: 1)
+        for _ in 0..<8 { await Task.yield() }
+
+        XCTAssertEqual(fixture.controller.state, .idle)
+        XCTAssertNil(fixture.controller.highlightedRange)
+        XCTAssertEqual(fixture.playback.state, .idle)
+    }
+
+    func testOlderSlowStartCannotOverwriteNewSelection() async throws {
+        let preparer = OldSessionDelayedPreparer()
+        let playback = RecordingPlayback()
+        let controller = AudiobookController(preparer: preparer, playback: playback)
+        let oldText = "旧会话第一句。旧会话第二句。"
+        let newText = "新会话第一句。新会话第二句。"
+
+        let oldStart = Task { await controller.startFromReadingPosition(text: oldText) }
+        try await Task.sleep(for: .milliseconds(20))
+        await controller.startFromReadingPosition(text: newText)
+        await oldStart.value
+        try await Task.sleep(for: .milliseconds(140))
+
+        let newRange = (newText as NSString).range(of: "新会话第一句。")
+        XCTAssertEqual(controller.highlightedRange, newRange.location..<NSMaxRange(newRange))
+        XCTAssertEqual(playback.currentSentenceRange, newRange.location..<NSMaxRange(newRange))
+    }
+}
+
+private actor ControlledRefillPreparer: SpeechPreparing {
+    private var callCount = 0
+    private var refillContinuation: CheckedContinuation<Void, Never>?
+    private var refillReleased = false
+
+    func prepare(_ block: SpeechBlock, generation: SpeechGenerationID) async throws -> PreparedSpeechBlock {
+        callCount += 1
+        if callCount > 1, !refillReleased {
+            await withCheckedContinuation { refillContinuation = $0 }
+        }
+        return PreparedSpeechBlock(sentences: block.sentences.map {
+            PreparedSentence(sentence: $0, samples: [0, 0, 0], sampleRate: 24_000)
+        })
+    }
+
+    func releaseRefill() {
+        refillReleased = true
+        refillContinuation?.resume()
+        refillContinuation = nil
+    }
+}
+
+private actor OldSessionDelayedPreparer: SpeechPreparing {
+    func prepare(_ block: SpeechBlock, generation: SpeechGenerationID) async throws -> PreparedSpeechBlock {
+        if block.text.hasPrefix("旧会话") {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        return PreparedSpeechBlock(sentences: block.sentences.map {
+            PreparedSentence(sentence: $0, samples: [0, 0, 0], sampleRate: 24_000)
+        })
+    }
 }
 
 private actor RecordingPreparer: SpeechPreparing {

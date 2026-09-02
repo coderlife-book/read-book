@@ -63,6 +63,31 @@ final class AppModelAudiobookTests: XCTestCase {
         let blocks = await fixture.preparer.blocks
         XCTAssertEqual(blocks.first?.sentences.first?.text, "现在才告诉我？")
     }
+
+    func testNewAudiobookControllerUsesPersistedSpeechRate() async throws {
+        let fixture = try AppModelAudiobookFixture()
+        try await fixture.addBook(title: "听书", text: "第一句。第二句。")
+        let model = fixture.makeModel()
+        model.updatePreferences { $0.speechRate = 1.3 }
+        try await model.open(fixture.bookIDs[0])
+
+        await model.startAudiobook()
+
+        XCTAssertEqual(fixture.playback.lastRate, 1.3, accuracy: 0.001)
+    }
+
+    func testAudiobookProgressPersistsWithoutForcingReaderRelayout() async throws {
+        let fixture = try AppModelAudiobookFixture()
+        try await fixture.addBook(title: "听书", text: "第一句。第二句。")
+        let model = fixture.makeModel()
+        try await model.open(fixture.bookIDs[0])
+        let revisionBeforePlayback = model.sessionRevision
+
+        await model.startAudiobook()
+
+        XCTAssertGreaterThan(model.session.position.utf16Offset, -1)
+        XCTAssertEqual(model.sessionRevision, revisionBeforePlayback)
+    }
 }
 
 @MainActor
@@ -142,6 +167,7 @@ private final class RecordingAudiobookPlayback: AudiobookPlaybackControlling {
     private(set) var currentSentenceRange: Range<Int>?
     var onSentenceFinished: (() -> Void)?
     private var queued: [PreparedSentence] = []
+    private(set) var lastRate = 1.0
 
     func enqueue(_ sentence: PreparedSentence) {
         queued.append(sentence)
@@ -160,7 +186,7 @@ private final class RecordingAudiobookPlayback: AudiobookPlaybackControlling {
         queued.removeAll()
     }
 
-    func setRate(_: Double) {}
+    func setRate(_ value: Double) { lastRate = value }
 }
 
 private actor RecordingAudiobookStopper: SpeechPlaybackStopping {

@@ -78,8 +78,7 @@ public struct PaginationEngine: Sendable {
 
     public func attributedString(_ text: String, style: ReaderTextStyle) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
-        let balancedLineSpacing = style.lineSpacing / 2
-        paragraph.lineSpacing = balancedLineSpacing
+        paragraph.lineSpacing = style.lineSpacing
         paragraph.paragraphSpacing = style.paragraphSpacing
         let font: NSFont
         if style.fontFamily == "System" {
@@ -92,7 +91,6 @@ public struct PaginationEngine: Sendable {
             attributes: [
                 .font: font,
                 .paragraphStyle: paragraph,
-                .baselineOffset: -balancedLineSpacing,
             ]
         )
     }

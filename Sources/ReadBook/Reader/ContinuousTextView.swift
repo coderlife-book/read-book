@@ -87,6 +87,7 @@ struct ContinuousTextView: NSViewRepresentable {
         weak var textView: NSTextView?
 
         private let planner = VirtualTextWindowPlanner()
+        private let textLayoutDelegate = ReaderTextLayoutDelegate()
         private var sourceBookID: UUID?
         private var sourceText = ""
         private var currentWindow: VirtualTextWindow?
@@ -111,6 +112,7 @@ struct ContinuousTextView: NSViewRepresentable {
         func attach(scrollView: NSScrollView, textView: NSTextView) {
             self.scrollView = scrollView
             self.textView = textView
+            textView.layoutManager?.delegate = textLayoutDelegate
             observer = NotificationCenter.default.addObserver(
                 forName: NSView.boundsDidChangeNotification,
                 object: scrollView.contentView,
@@ -139,6 +141,7 @@ struct ContinuousTextView: NSViewRepresentable {
         func updateHighlight(_ globalRange: Range<Int>?) {
             highlightedRange = globalRange
             applyHighlight()
+            scrollHighlightIntoViewIfNeeded()
         }
 
         func update(
@@ -195,6 +198,7 @@ struct ContinuousTextView: NSViewRepresentable {
                   let textView else { return }
 
             let engine = PaginationEngine()
+            textLayoutDelegate.lineSpacing = style.lineSpacing
             let attributed = NSMutableAttributedString(
                 attributedString: engine.attributedString(window.text, style: style)
             )
@@ -309,6 +313,27 @@ struct ContinuousTextView: NSViewRepresentable {
                 value: NSColor.systemYellow.withAlphaComponent(0.28),
                 range: local
             )
+        }
+
+        private func scrollHighlightIntoViewIfNeeded() {
+            guard let highlightedRange,
+                  let window = currentWindow,
+                  window.contains(globalOffset: highlightedRange.lowerBound),
+                  let scrollView,
+                  let textView,
+                  let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer else { return }
+
+            let localOffset = window.localOffset(forGlobalOffset: highlightedRange.lowerBound)
+            let glyphRange = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: localOffset, length: 1),
+                actualCharacterRange: nil
+            )
+            let glyphRect = layoutManager
+                .boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                .offsetBy(dx: textView.textContainerOrigin.x, dy: textView.textContainerOrigin.y)
+            guard !scrollView.contentView.bounds.intersects(glyphRect) else { return }
+            scrollTo(globalOffset: highlightedRange.lowerBound)
         }
 
         private func scheduleRecenteringIfNeeded(at globalOffset: Int) {
