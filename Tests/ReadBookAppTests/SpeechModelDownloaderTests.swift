@@ -50,6 +50,25 @@ final class SpeechModelDownloaderTests: XCTestCase {
 
         XCTAssertEqual(try Data(contentsOf: fixture.partialFile), Data("abc".utf8))
     }
+
+    func testSpeedEstimatorMeasuresByteDeltaOverElapsedTime() {
+        var estimator = SpeechDownloadSpeedEstimator()
+
+        XCTAssertNil(estimator.update(downloadedBytes: 10_000_000, at: 100))
+        let speed = estimator.update(downloadedBytes: 12_000_000, at: 101)
+
+        XCTAssertEqual(speed ?? -1, 2_000_000, accuracy: 1)
+    }
+
+    func testSpeedEstimatorIgnoresTooFrequentSamplesUntilWindowElapses() {
+        var estimator = SpeechDownloadSpeedEstimator(minimumSampleInterval: 0.25)
+
+        XCTAssertNil(estimator.update(downloadedBytes: 0, at: 10))
+        XCTAssertNil(estimator.update(downloadedBytes: 1_000_000, at: 10.1))
+        let speed = estimator.update(downloadedBytes: 2_500_000, at: 10.5)
+
+        XCTAssertEqual(speed ?? -1, 5_000_000, accuracy: 1)
+    }
 }
 
 private final class SpeechDownloadFixture {

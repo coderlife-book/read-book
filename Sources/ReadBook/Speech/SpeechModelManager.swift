@@ -20,10 +20,17 @@ private enum SpeechModelImportError: Error {
 @MainActor
 @Observable
 final class SpeechModelManager {
+    private struct ActiveDownload {
+        let kind: SpeechModelKind
+        var progress: SpeechDownloadProgress?
+    }
+
     private let locator: SpeechModelLocator
     private let downloader: any SpeechModelDownloading
     private let stopper: any SpeechPlaybackStopping
     private let modelsRoot: URL
+    private var activeDownloads: [UUID: ActiveDownload] = [:]
+    private var activeDownloadOrder: [UUID] = []
 
     private(set) var state: SpeechModelState = .notInstalled(
         missingBytes: SpeechModelCatalog.all.reduce(0) { $0 + $1.approximateBytes }
@@ -45,6 +52,7 @@ final class SpeechModelManager {
     }
 
     func discover() async {
+        guard !hasActiveDownloads else { return }
         state = .discovering
         do {
             let locations = try locator.locateAll()
@@ -59,7 +67,7 @@ final class SpeechModelManager {
         source: SpeechModelDownloadSource? = nil
     ) async {
         let resolvedSource = source ?? SpeechModelDownloadPreferences.configuredSource()
-        state = .discovering
+        if !hasActiveDownloads { state = .discovering }
         do {
             var locations = try locator.locateAll()
             updateInstalledKinds(locations)
@@ -70,13 +78,13 @@ final class SpeechModelManager {
                 locations = try locator.locateAll()
                 updateInstalledKinds(locations)
             }
-            state = state(for: locations)
+            publishStateIfIdle(for: locations)
         } catch is CancellationError {
-            await discover()
+            if !hasActiveDownloads { await discover() }
         } catch {
-            downloadingKind = nil
-            downloadProgress = nil
-            state = .failed(downloadFailureMessage(error))
+            if !hasActiveDownloads {
+                state = .failed(downloadFailureMessage(error))
+            }
         }
     }
 
@@ -85,7 +93,7 @@ final class SpeechModelManager {
         source: SpeechModelDownloadSource? = nil
     ) async {
         let resolvedSource = source ?? SpeechModelDownloadPreferences.configuredSource()
-        state = .discovering
+        if !hasActiveDownloads { state = .discovering }
         do {
             var locations = try locator.locateAll()
             updateInstalledKinds(locations)
@@ -95,13 +103,13 @@ final class SpeechModelManager {
                 locations = try locator.locateAll()
                 updateInstalledKinds(locations)
             }
-            state = state(for: locations)
+            publishStateIfIdle(for: locations)
         } catch is CancellationError {
-            await discover()
+            if !hasActiveDownloads { await discover() }
         } catch {
-            downloadingKind = nil
-            downloadProgress = nil
-            state = .failed(downloadFailureMessage(error))
+            if !hasActiveDownloads {
+                state = .failed(downloadFailureMessage(error))
+            }
         }
     }
 
@@ -152,6 +160,8 @@ final class SpeechModelManager {
             try FileManager.default.removeItem(at: modelsRoot)
         }
         installedKinds = []
+        activeDownloads.removeAll()
+        activeDownloadOrder.removeAll()
         downloadingKind = nil
         downloadProgress = nil
         state = .notInstalled(
@@ -159,20 +169,63 @@ final class SpeechModelManager {
         )
     }
 
+    private var hasActiveDownloads: Bool {
+        !activeDownloadOrder.isEmpty
+    }
+
+    private var foregroundDownloadID: UUID? {
+        activeDownloadOrder.last
+    }
+
+    private func beginDownload(_ kind: SpeechModelKind) -> UUID {
+        let downloadID = UUID()
+        activeDownloads[downloadID] = ActiveDownload(kind: kind, progress: nil)
+        activeDownloadOrder.append(downloadID)
+        publishForegroundDownload()
+        return downloadID
+    }
+
+    private func updateDownload(_ downloadID: UUID, progress: SpeechDownloadProgress) {
+        guard var activeDownload = activeDownloads[downloadID] else { return }
+        activeDownload.progress = progress
+        activeDownloads[downloadID] = activeDownload
+        guard foregroundDownloadID == downloadID else { return }
+        downloadingKind = activeDownload.kind
+        downloadProgress = progress
+        state = .downloading(progress)
+    }
+
+    private func finishDownload(_ downloadID: UUID) {
+        guard activeDownloads.removeValue(forKey: downloadID) != nil else { return }
+        activeDownloadOrder.removeAll { $0 == downloadID }
+        publishForegroundDownload()
+    }
+
+    private func publishForegroundDownload() {
+        guard let downloadID = foregroundDownloadID,
+              let activeDownload = activeDownloads[downloadID] else {
+            downloadingKind = nil
+            downloadProgress = nil
+            return
+        }
+
+        downloadingKind = activeDownload.kind
+        downloadProgress = activeDownload.progress
+        if let progress = activeDownload.progress {
+            state = .downloading(progress)
+        }
+    }
+
     private func download(
         _ descriptor: SpeechModelDescriptor,
         source: SpeechModelDownloadSource
     ) async throws {
-        downloadingKind = descriptor.kind
-        defer {
-            downloadingKind = nil
-            downloadProgress = nil
-        }
+        let downloadID = beginDownload(descriptor.kind)
+        defer { finishDownload(downloadID) }
 
         let progressHandler: @Sendable (SpeechDownloadProgress) -> Void = { [weak self] progress in
             Task { @MainActor in
-                self?.state = .downloading(progress)
-                self?.downloadProgress = progress
+                self?.updateDownload(downloadID, progress: progress)
             }
         }
 
@@ -192,6 +245,11 @@ final class SpeechModelManager {
         } else {
             throw SpeechModelDownloadError.invalidSourceURL
         }
+    }
+
+    private func publishStateIfIdle(for locations: SpeechModelLocations) {
+        guard !hasActiveDownloads else { return }
+        state = state(for: locations)
     }
 
     private func materializeSnapshot(from source: URL, to destination: URL) throws {

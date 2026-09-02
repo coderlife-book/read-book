@@ -3,6 +3,52 @@ import Foundation
 struct SpeechDownloadProgress: Equatable, Sendable {
     let downloadedBytes: Int64
     let totalBytes: Int64
+    let bytesPerSecond: Double?
+
+    init(
+        downloadedBytes: Int64,
+        totalBytes: Int64,
+        bytesPerSecond: Double? = nil
+    ) {
+        self.downloadedBytes = downloadedBytes
+        self.totalBytes = totalBytes
+        self.bytesPerSecond = bytesPerSecond
+    }
+}
+
+struct SpeechDownloadSpeedEstimator {
+    let minimumSampleInterval: TimeInterval
+    private var lastSampleBytes: Int64?
+    private var lastSampleTime: TimeInterval?
+    private var smoothedBytesPerSecond: Double?
+
+    init(minimumSampleInterval: TimeInterval = 0.25) {
+        self.minimumSampleInterval = minimumSampleInterval
+    }
+
+    mutating func update(downloadedBytes: Int64, at time: TimeInterval) -> Double? {
+        guard let lastSampleBytes, let lastSampleTime else {
+            self.lastSampleBytes = downloadedBytes
+            self.lastSampleTime = time
+            return nil
+        }
+
+        let elapsed = time - lastSampleTime
+        guard elapsed >= minimumSampleInterval else {
+            return smoothedBytesPerSecond
+        }
+
+        let transferred = max(downloadedBytes - lastSampleBytes, 0)
+        let instantaneous = Double(transferred) / max(elapsed, 0.001)
+        if let smoothedBytesPerSecond {
+            self.smoothedBytesPerSecond = (smoothedBytesPerSecond * 0.7) + (instantaneous * 0.3)
+        } else {
+            smoothedBytesPerSecond = instantaneous
+        }
+        self.lastSampleBytes = downloadedBytes
+        self.lastSampleTime = time
+        return smoothedBytesPerSecond
+    }
 }
 
 struct SpeechModelDownloadSource: Equatable, Sendable {
@@ -225,7 +271,20 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
         }
         let missingBytes = max(totalBytes - downloadedBytes, 0)
         try verifyDiskCapacity(for: missingBytes, at: modelsRoot)
-        progress(SpeechDownloadProgress(downloadedBytes: downloadedBytes, totalBytes: totalBytes))
+
+        var speedEstimator = SpeechDownloadSpeedEstimator()
+        func reportProgress() {
+            let bytesPerSecond = speedEstimator.update(
+                downloadedBytes: downloadedBytes,
+                at: ProcessInfo.processInfo.systemUptime
+            )
+            progress(SpeechDownloadProgress(
+                downloadedBytes: downloadedBytes,
+                totalBytes: max(totalBytes, downloadedBytes),
+                bytesPerSecond: bytesPerSecond
+            ))
+        }
+        reportProgress()
 
         for file in files {
             try Task.checkCancellation()
@@ -242,10 +301,7 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
                     downloadedBytes = max(downloadedBytes - total, 0)
                     try Data().write(to: partialFile)
                     startingOffset = 0
-                    progress(SpeechDownloadProgress(
-                        downloadedBytes: downloadedBytes,
-                        totalBytes: totalBytes
-                    ))
+                    reportProgress()
                 }
             }
             if !fileManager.fileExists(atPath: partialFile.path) {
@@ -260,10 +316,7 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
                     try Task.checkCancellation()
                     try handle.write(contentsOf: chunk)
                     downloadedBytes += Int64(chunk.count)
-                    progress(SpeechDownloadProgress(
-                        downloadedBytes: downloadedBytes,
-                        totalBytes: max(totalBytes, downloadedBytes)
-                    ))
+                    reportProgress()
                 }
                 try handle.close()
             } catch {
@@ -316,8 +369,15 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
     private func verifyDiskCapacity(for missingBytes: Int64, at url: URL) throws {
         guard missingBytes > 0 else { return }
         let parent = fileManager.fileExists(atPath: url.path) ? url : url.deletingLastPathComponent()
-        let values = try? parent.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        guard let available = values?.volumeAvailableCapacityForImportantUsage else { return }
+        let values = try? parent.resourceValues(forKeys: [
+            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityKey,
+        ])
+        let importantCapacity = values?.volumeAvailableCapacityForImportantUsage
+        let fallbackCapacity = values?.volumeAvailableCapacity.map(Int64.init)
+        guard let available = [importantCapacity, fallbackCapacity]
+            .compactMap({ $0 })
+            .first(where: { $0 > 0 }) else { return }
         let required = Int64((Double(missingBytes) * 1.15).rounded(.up))
         guard available >= required else {
             throw SpeechModelDownloadError.insufficientDiskSpace(requiredBytes: required)

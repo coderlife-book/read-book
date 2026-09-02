@@ -74,6 +74,66 @@ final class SpeechModelManagerTests: XCTestCase {
         XCTAssertEqual(callCount, 2)
     }
 
+    func testOlderDownloadFinishingDoesNotClearNewerActiveDownload() async throws {
+        let fixture = try SpeechManagerFixture(installedKinds: [])
+        let overlappingDownloader = OverlappingSpeechModelDownloader()
+        let manager = SpeechModelManager(
+            locator: fixture.locator,
+            downloader: overlappingDownloader,
+            stopper: fixture.stopper,
+            modelsRoot: fixture.modelsRoot
+        )
+
+        let ttsTask = Task { await manager.prepareModel(.tts) }
+        await overlappingDownloader.waitUntilStarted(.tts)
+
+        let alignerTask = Task { await manager.prepareModel(.aligner) }
+        await overlappingDownloader.waitUntilStarted(.aligner)
+        XCTAssertEqual(manager.downloadingKind, .aligner)
+
+        await overlappingDownloader.finish(.tts)
+        await ttsTask.value
+
+        XCTAssertEqual(
+            manager.downloadingKind,
+            .aligner,
+            "an older download finishing must not clear the newer active download badge"
+        )
+
+        await overlappingDownloader.finish(.aligner)
+        await alignerTask.value
+    }
+
+    func testNewerDownloadFinishingRestoresOlderStillActiveDownload() async throws {
+        let fixture = try SpeechManagerFixture(installedKinds: [])
+        let overlappingDownloader = OverlappingSpeechModelDownloader()
+        let manager = SpeechModelManager(
+            locator: fixture.locator,
+            downloader: overlappingDownloader,
+            stopper: fixture.stopper,
+            modelsRoot: fixture.modelsRoot
+        )
+
+        let ttsTask = Task { await manager.prepareModel(.tts) }
+        await overlappingDownloader.waitUntilStarted(.tts)
+
+        let alignerTask = Task { await manager.prepareModel(.aligner) }
+        await overlappingDownloader.waitUntilStarted(.aligner)
+        XCTAssertEqual(manager.downloadingKind, .aligner)
+
+        await overlappingDownloader.finish(.aligner)
+        await alignerTask.value
+
+        XCTAssertEqual(
+            manager.downloadingKind,
+            .tts,
+            "when the foreground download finishes, another still-active background download must remain visible"
+        )
+
+        await overlappingDownloader.finish(.tts)
+        await ttsTask.value
+    }
+
     func testDeleteClearsInstalledKinds() async throws {
         let fixture = try SpeechManagerFixture(installedKinds: [.tts, .aligner])
         let manager = SpeechModelManager(
@@ -115,14 +175,33 @@ private final class SpeechManagerFixture {
         let snapshot = modelsRoot
             .appendingPathComponent(descriptor.kind.rawValue, isDirectory: true)
             .appendingPathComponent(descriptor.revision, isDirectory: true)
-        for relativePath in descriptor.requiredRelativePaths {
-            let file = snapshot.appendingPathComponent(relativePath)
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if relativePath == "model.safetensors.index.json" {
-                try JSONSerialization.data(withJSONObject: ["weight_map": ["layer": "model.safetensors"]]).write(to: file)
-            } else {
-                try Data(relativePath.utf8).write(to: file)
-            }
+        try writeSnapshot(descriptor, to: snapshot)
+    }
+}
+
+private final class SnapshotWriteLock: @unchecked Sendable {
+    private let lock = NSLock()
+
+    func write(_ descriptor: SpeechModelDescriptor, to snapshot: URL) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        try writeSnapshot(descriptor, to: snapshot)
+    }
+}
+
+private func writeSnapshot(_ descriptor: SpeechModelDescriptor, to snapshot: URL) throws {
+    for relativePath in descriptor.requiredRelativePaths {
+        let file = snapshot.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if relativePath == "model.safetensors.index.json" {
+            try JSONSerialization.data(
+                withJSONObject: ["weight_map": ["layer": "model.safetensors"]]
+            ).write(to: file)
+        } else {
+            try Data(relativePath.utf8).write(to: file)
         }
     }
 }
@@ -159,23 +238,45 @@ private actor SnapshotWritingSpeechModelDownloader: SpeechModelDownloading {
         let snapshot = modelsRoot
             .appendingPathComponent(descriptor.kind.rawValue, isDirectory: true)
             .appendingPathComponent(descriptor.revision, isDirectory: true)
-        for relativePath in descriptor.requiredRelativePaths {
-            let file = snapshot.appendingPathComponent(relativePath)
-            try FileManager.default.createDirectory(
-                at: file.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if relativePath == "model.safetensors.index.json" {
-                try JSONSerialization.data(
-                    withJSONObject: ["weight_map": ["layer": "model.safetensors"]]
-                ).write(to: file)
-            } else {
-                try Data(relativePath.utf8).write(to: file)
-            }
-        }
+        try writeSnapshot(descriptor, to: snapshot)
         let total = descriptor.requiredRelativePaths.reduce(Int64(0)) { $0 + Int64($1.utf8.count) }
         progress(SpeechDownloadProgress(downloadedBytes: total, totalBytes: total))
         return snapshot
+    }
+}
+
+private actor OverlappingSpeechModelDownloader: SpeechModelDownloading {
+    private var startedKinds: Set<SpeechModelKind> = []
+    private var finishContinuations: [SpeechModelKind: CheckedContinuation<Void, Never>] = [:]
+    private let writeLock = SnapshotWriteLock()
+
+    func download(
+        _ descriptor: SpeechModelDescriptor,
+        to modelsRoot: URL,
+        progress: @Sendable (SpeechDownloadProgress) -> Void
+    ) async throws -> URL {
+        startedKinds.insert(descriptor.kind)
+        progress(SpeechDownloadProgress(downloadedBytes: 25, totalBytes: 100))
+
+        await withCheckedContinuation { continuation in
+            finishContinuations[descriptor.kind] = continuation
+        }
+
+        let snapshot = modelsRoot
+            .appendingPathComponent(descriptor.kind.rawValue, isDirectory: true)
+            .appendingPathComponent(descriptor.revision, isDirectory: true)
+        try writeLock.write(descriptor, to: snapshot)
+        return snapshot
+    }
+
+    func waitUntilStarted(_ kind: SpeechModelKind) async {
+        while !startedKinds.contains(kind) {
+            await Task.yield()
+        }
+    }
+
+    func finish(_ kind: SpeechModelKind) {
+        finishContinuations.removeValue(forKey: kind)?.resume()
     }
 }
 #endif
