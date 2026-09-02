@@ -139,6 +139,7 @@ struct ContinuousTextView: NSViewRepresentable {
         }
 
         func updateHighlight(_ globalRange: Range<Int>?) {
+            guard globalRange != highlightedRange else { return }
             highlightedRange = globalRange
             applyHighlight()
             scrollHighlightIntoViewIfNeeded()
