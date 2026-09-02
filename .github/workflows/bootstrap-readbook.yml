@@ -177,13 +177,12 @@ jobs:
           fi
 
           cat > release-notes.md <<EOF
-          ReadBook $TAG 模型管理与下载可靠性更新。
+          ReadBook $TAG 下载与更新可靠性修复。
 
-          - 设置页支持 Hugging Face 与自定义 HF-compatible 镜像下载源
-          - 支持单模型下载、重试、下载全部缺失模型和重新扫描本地模型
-          - 支持手动导入固定版本的 TTS / 语音对齐模型，并校验模型文件完整性
-          - 下载失败会显示网络超时、HTTP 状态、断点续传、磁盘空间等具体原因
-          - 阅读页首次听书下载与设置页共享持久化下载源配置
+          - Hugging Face / HF-compatible 镜像未提供 Content-Length 时不再直接终止模型下载
+          - 未知文件大小时使用锁定模型的预估总大小展示进度，并继续保留 partial 断点文件
+          - 内置更新最终保存阅读进度改为真正的硬超时，不再被不响应 cancellation 的保存任务永久拖住
+          - 最终保存超时时仍继续安装已经下载并校验通过的更新，避免长期卡在“正在安装”
 
           说明：语音模型约 3.8 GB，不包含在安装包中。当前仍为 ad-hoc 签名，未使用 Apple Developer ID/notarization；首次下载安装时 macOS 可能仍需要右键 ReadBook.app → 打开。
           EOF
