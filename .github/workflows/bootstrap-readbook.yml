@@ -81,6 +81,8 @@ jobs:
 
       - name: Package local app bundle
         if: steps.change_scope.outputs.needs_build == 'true'
+        env:
+          READBOOK_SKIP_BUILD: "1"
         run: Scripts/build-app.sh
 
       - name: Verify packaged app signature

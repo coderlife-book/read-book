@@ -12,7 +12,14 @@ cd "$ROOT"
 APP_VERSION="${READBOOK_VERSION:-0.2.0}"
 APP_BUILD="${READBOOK_BUILD:-12}"
 
-swift build -c release
+if [[ "${READBOOK_SKIP_BUILD:-0}" == "1" ]]; then
+  if [[ ! -x "$ROOT/.build/release/ReadBook" ]]; then
+    echo "READBOOK_SKIP_BUILD=1 requires an existing .build/release/ReadBook executable." >&2
+    exit 1
+  fi
+else
+  swift build -c release
+fi
 
 BRAND_DIR="$ROOT/dist/branding"
 rm -rf "$BRAND_DIR"
