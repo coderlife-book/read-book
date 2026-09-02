@@ -9,6 +9,7 @@ struct ReaderRootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var showLibrary = false
+    @State private var selectedSpeechRange: NSRange?
     @State private var selectedRecoveryEncoding: ImportedTextEncoding = .gb18030
 
     var body: some View {
@@ -37,24 +38,7 @@ struct ReaderRootView: View {
 
             VStack(spacing: 0) {
                 if topVisible {
-                    ReaderToolbar(
-                        title: model.currentBook?.title ?? "ReadBook",
-                        readingMode: model.readingMode,
-                        alwaysOnTop: model.preferences.alwaysOnTop,
-                        onLibrary: {
-                            runtime.chrome.setControlInteractionHeld(true)
-                            showLibrary.toggle()
-                        },
-                        onModeChange: { model.setMode($0) },
-                        onPin: {
-                            model.updatePreferences { $0.alwaysOnTop.toggle() }
-                            NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
-                        }
-                    )
-                    .foregroundStyle(Color(nsColor: palette.text))
-                    .background(controlScrim(palette: palette))
-                    .onHover { runtime.chrome.setControlInteractionHeld($0) }
-                    .transition(.opacity)
+                    readerToolbar(palette: palette)
                 }
 
                 Spacer(minLength: 0)
@@ -114,6 +98,53 @@ struct ReaderRootView: View {
         .animation(.easeOut(duration: 0.14), value: runtime.chrome.bottomVisible)
         .popover(isPresented: $showLibrary, arrowEdge: .top) {
             LibraryPopoverView(model: model)
+        }
+        .popover(
+            isPresented: Binding(
+                get: { selectedSpeechRange != nil },
+                set: { if !$0 { selectedSpeechRange = nil } }
+            ),
+            arrowEdge: .bottom
+        ) {
+            Button {
+                guard let range = selectedSpeechRange else { return }
+                selectedSpeechRange = nil
+                Task { await model.startAudiobookFromSelection(range) }
+            } label: {
+                Label("从此处开始听", systemImage: "headphones")
+            }
+            .buttonStyle(.plain)
+            .padding(10)
+        }
+        .confirmationDialog(
+            "下载听书模型",
+            isPresented: $model.isAudiobookDownloadPresented,
+            titleVisibility: .visible
+        ) {
+            Button("下载并开始听书") { model.beginAudiobookDownload() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(model.audiobookDownloadMessage)
+        }
+        .sheet(isPresented: $model.isAudiobookDownloading) {
+            VStack(spacing: 14) {
+                Text("正在下载听书模型")
+                    .font(.headline)
+                if let fraction = model.audiobookDownloadFraction {
+                    ProgressView(value: fraction)
+                } else {
+                    ProgressView()
+                }
+                Text("下载完成后将自动开始听书。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button("取消") { model.cancelAudiobookDownload() }
+                }
+            }
+            .padding(20)
+            .frame(width: 320)
         }
         .onChange(of: showLibrary) { _, presented in
             runtime.chrome.setControlInteractionHeld(presented)
@@ -190,7 +221,9 @@ struct ReaderRootView: View {
                 anchor: model.position,
                 style: style,
                 textColor: textColor,
-                onPositionChanged: model.updatePosition
+                onPositionChanged: model.updatePosition,
+                highlightedRange: model.audiobookController?.highlightedRange,
+                onSelectionChanged: { range in selectedSpeechRange = range }
             )
         case .continuous:
             if let bookID = model.currentBook?.id {
@@ -200,7 +233,9 @@ struct ReaderRootView: View {
                     anchor: model.position,
                     style: style,
                     textColor: textColor,
-                    onPositionChanged: model.updatePosition
+                    onPositionChanged: model.updatePosition,
+                    highlightedRange: model.audiobookController?.highlightedRange,
+                    onSelectionChanged: { range in selectedSpeechRange = range }
                 )
             }
         }
@@ -218,6 +253,34 @@ struct ReaderRootView: View {
                 Color.clear
             }
         }
+    }
+
+    private func readerToolbar(palette: ThemePalette) -> some View {
+        ReaderToolbar(
+            title: model.currentBook?.title ?? "ReadBook",
+            readingMode: model.readingMode,
+            alwaysOnTop: model.preferences.alwaysOnTop,
+            onLibrary: {
+                runtime.chrome.setControlInteractionHeld(true)
+                showLibrary.toggle()
+            },
+            onModeChange: { model.setMode($0) },
+            onPin: {
+                model.updatePreferences { $0.alwaysOnTop.toggle() }
+                NotificationCenter.default.post(name: .readBookWindowPreferencesChanged, object: nil)
+            },
+            audiobookState: model.currentBook == nil ? nil : model.audiobookController?.state ?? .idle,
+            onAudiobookToggle: { Task { await model.startAudiobook() } },
+            speechRate: model.preferences.speechRate,
+            onSpeechRateChange: { rate in
+                model.updatePreferences { $0.speechRate = rate }
+                model.audiobookController?.setRate(rate)
+            }
+        )
+        .foregroundStyle(Color(nsColor: palette.text))
+        .background(controlScrim(palette: palette))
+        .onHover { runtime.chrome.setControlInteractionHeld($0) }
+        .transition(.opacity)
     }
 
     private func controlScrim(palette: ThemePalette) -> some View {

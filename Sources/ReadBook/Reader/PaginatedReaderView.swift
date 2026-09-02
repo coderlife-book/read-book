@@ -8,6 +8,26 @@ struct PaginatedReaderView: View {
     let style: ReaderTextStyle
     let textColor: NSColor
     let onPositionChanged: (BookPosition) -> Void
+    let highlightedRange: Range<Int>?
+    let onSelectionChanged: (NSRange) -> Void
+
+    init(
+        text: String,
+        anchor: BookPosition,
+        style: ReaderTextStyle,
+        textColor: NSColor,
+        onPositionChanged: @escaping (BookPosition) -> Void,
+        highlightedRange: Range<Int>? = nil,
+        onSelectionChanged: @escaping (NSRange) -> Void = { _ in }
+    ) {
+        self.text = text
+        self.anchor = anchor
+        self.style = style
+        self.textColor = textColor
+        self.onPositionChanged = onPositionChanged
+        self.highlightedRange = highlightedRange
+        self.onSelectionChanged = onSelectionChanged
+    }
 
     @State private var currentRange: PageRange?
     @State private var hovering = false
@@ -20,12 +40,23 @@ struct PaginatedReaderView: View {
 
             ZStack {
                 if let range = currentRange, range.length > 0 {
+                    let pageRange = range.location..<(range.location + range.length)
+                    let localHighlight: NSRange? = highlightedRange.flatMap { global in
+                        let lower = max(global.lowerBound, pageRange.lowerBound)
+                        let upper = min(global.upperBound, pageRange.upperBound)
+                        guard lower < upper else { return nil }
+                        return NSRange(location: lower - range.location, length: upper - lower)
+                    }
                     PagedTextView(
                         text: (text as NSString).substring(
                             with: NSRange(location: range.location, length: range.length)
                         ),
                         style: style,
-                        textColor: textColor
+                        textColor: textColor,
+                        highlightedRange: localHighlight,
+                        onSelectionChanged: { local in
+                            onSelectionChanged(NSRange(location: range.location + local.location, length: local.length))
+                        }
                     )
                     .padding(.horizontal, style.horizontalPadding)
                     .padding(.vertical, style.verticalPadding)
@@ -60,6 +91,21 @@ struct PaginatedReaderView: View {
             }
             .onChange(of: proxy.size) { _, _ in
                 layout(width: innerWidth, height: innerHeight)
+            }
+            .onChange(of: highlightedRange) { _, newRange in
+                guard let newRange, let currentRange else { return }
+                if let next = PagedAudiobookNavigation.pageIfNeeded(
+                    currentRange: currentRange,
+                    highlightedRange: newRange,
+                    text: text as NSString,
+                    width: innerWidth,
+                    height: innerHeight,
+                    style: style,
+                    engine: engine
+                ) {
+                    self.currentRange = next
+                    onPositionChanged(BookPosition(utf16Offset: next.location))
+                }
             }
         }
     }

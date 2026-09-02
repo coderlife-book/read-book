@@ -100,4 +100,24 @@ final class PreferencesStoreTests: XCTestCase {
         let b = LayoutSignature(width: 316.02, height: 220.02, style: .default)
         XCTAssertEqual(a, b)
     }
+
+    func testLegacyPreferencesDecodeWithDefaultSpeechRate() throws {
+        let json = #"{"readingMode":"paginated","fontFamily":"PingFang SC","fontSize":17,"lineSpacing":8,"paragraphSpacing":9,"theme":"soft","alwaysOnTop":false,"appPresenceMode":"normal"}"#
+
+        let value = try JSONDecoder().decode(ReaderPreferences.self, from: Data(json.utf8))
+
+        XCTAssertEqual(value.speechRate, 1.0)
+    }
+
+    func testSpeechRateClampsAndRoundTrips() throws {
+        var value = ReaderPreferences.defaults
+        value.speechRate = 1.8
+
+        let decoded = try JSONDecoder().decode(
+            ReaderPreferences.self,
+            from: JSONEncoder().encode(value)
+        )
+
+        XCTAssertEqual(decoded.speechRate, 1.5)
+    }
 }

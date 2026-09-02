@@ -9,8 +9,8 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-APP_VERSION="${READBOOK_VERSION:-0.1.10}"
-APP_BUILD="${READBOOK_BUILD:-11}"
+APP_VERSION="${READBOOK_VERSION:-0.2.0}"
+APP_BUILD="${READBOOK_BUILD:-12}"
 
 swift build -c release
 
@@ -27,6 +27,14 @@ cp "$ROOT/.build/release/ReadBook" "$APP/Contents/MacOS/ReadBook"
 cp "$BRAND_DIR/ReadBook.icns" "$APP/Contents/Resources/ReadBook.icns"
 cp "$BRAND_DIR/ReadBookMenuTemplate.png" "$APP/Contents/Resources/ReadBookMenuTemplate.png"
 cp "$ROOT/DesignAssets/Tabler/LICENSE" "$APP/Contents/Resources/Licenses/Tabler/LICENSE"
+
+# MLX SwiftPM CLI 构建不产出 metallib，但运行时要求与可执行文件同目录。
+# 固定资源来自 DesignAssets/MLX/README.md 中锁定的 mlx-swift revision。
+if [[ ! -f "$ROOT/DesignAssets/MLX/mlx.metallib" ]]; then
+  echo "Missing DesignAssets/MLX/mlx.metallib; MLX audio would fail to load." >&2
+  exit 1
+fi
+cp "$ROOT/DesignAssets/MLX/mlx.metallib" "$APP/Contents/MacOS/mlx.metallib"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -48,7 +56,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 # SwiftPM's linker ad-hoc signs the raw executable before the .app bundle exists.
-# Re-sign the completed bundle so Info.plist, icon, and resources are sealed.
-codesign --force --sign - --timestamp=none "$APP"
+# Re-sign the completed bundle so Info.plist, icon, resources, and the colocated
+# MLX Metal kernel library (a Mach-O subcomponent) are all sealed.
+codesign --force --deep --sign - --timestamp=none "$APP"
 
 printf 'Built %s (v%s build %s)\n' "$APP" "$APP_VERSION" "$APP_BUILD"

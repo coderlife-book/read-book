@@ -7,6 +7,7 @@ struct SettingsView: View {
     let runtime: AppRuntime
 
     private let fonts = ["PingFang SC", "Songti SC", "STKaiti", "System"]
+    @State private var isDeleteModelConfirmationPresented = false
 
     var body: some View {
         Form {
@@ -153,10 +154,56 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("听书") {
+                ForEach(model.audiobookModelRows, id: \.kind) { row in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(row.name)
+                            Spacer()
+                            modelStatusBadge(row)
+                        }
+                        Link(row.repoID, destination: row.sourceURL)
+                            .font(.caption)
+                        HStack(spacing: 8) {
+                            Text("Revision \(row.revision.prefix(12))…")
+                                .monospaced()
+                            Text(row.license)
+                            Spacer()
+                            Text(row.byteDescription)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                Button("删除听书模型", role: .destructive) {
+                    isDeleteModelConfirmationPresented = true
+                }
+                .disabled(model.audiobookInstalledKinds.isEmpty)
+
+                Text("模型只在本机运行，下载约 3.8 GB。删除会停止当前听书并移除 ReadBook 管理的模型文件。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .confirmationDialog(
+                "删除听书模型",
+                isPresented: $isDeleteModelConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) {
+                    Task { await model.deleteAudiobookModels() }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("删除后需要重新下载才能继续听书。")
+            }
         }
         .formStyle(.grouped)
         .padding(16)
         .frame(width: 470, height: 610)
+        .task { await model.discoverAudiobookModels() }
     }
 
     private var currentVersion: String {
@@ -192,6 +239,32 @@ struct SettingsView: View {
         case "Songti SC": "宋体"
         case "STKaiti": "楷体"
         default: "系统字体"
+        }
+    }
+
+    @ViewBuilder
+    private func modelStatusBadge(_ row: SpeechModelRowPresentation) -> some View {
+        if row.isDownloading {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                if let fraction = row.progressFraction {
+                    Text("\(Int((fraction * 100).rounded()))%")
+                        .monospacedDigit()
+                } else {
+                    Text("下载中")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else if row.isInstalled {
+            Text("已安装")
+                .font(.caption)
+                .foregroundStyle(.green)
+        } else {
+            Text("未安装")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
