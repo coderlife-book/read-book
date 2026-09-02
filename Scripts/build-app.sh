@@ -9,8 +9,8 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-APP_VERSION="${READBOOK_VERSION:-0.2.1}"
-APP_BUILD="${READBOOK_BUILD:-13}"
+APP_VERSION="${READBOOK_VERSION:-0.2.2}"
+APP_BUILD="${READBOOK_BUILD:-14}"
 
 if [[ "${READBOOK_SKIP_BUILD:-0}" == "1" ]]; then
   if [[ ! -x "$ROOT/.build/release/ReadBook" ]]; then
