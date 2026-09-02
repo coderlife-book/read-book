@@ -40,6 +40,28 @@ enum SpeechModelDownloadSourceMode: String, CaseIterable, Sendable {
     case customMirror
 }
 
+enum SpeechModelDownloadPreferences {
+    static let modeKey = "speechModelDownloadSourceMode"
+    static let customMirrorURLKey = "speechModelCustomMirrorURL"
+
+    static func configuredSource(defaults: UserDefaults = .standard) -> SpeechModelDownloadSource {
+        let mode = SpeechModelDownloadSourceMode(
+            rawValue: defaults.string(forKey: modeKey) ?? ""
+        ) ?? .huggingFace
+        guard mode == .customMirror else { return .huggingFace }
+
+        let value = (defaults.string(forKey: customMirrorURLKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return SpeechModelDownloadSource(baseURL: URL(string: "invalid://invalid")!)
+        }
+        return SpeechModelDownloadSource(baseURL: url)
+    }
+}
+
 protocol SpeechDownloadTransport: Sendable {
     func contentLength(for url: URL) async throws -> Int64
     func bytes(

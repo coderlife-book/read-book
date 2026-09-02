@@ -33,6 +33,27 @@ final class SpeechModelManagementExtensionsTests: XCTestCase {
         )
     }
 
+    func testPersistedCustomMirrorBecomesDefaultDownloadSource() {
+        let suite = "SpeechModelDownloadPreferencesTests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            return XCTFail("expected isolated UserDefaults suite")
+        }
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(
+            SpeechModelDownloadSourceMode.customMirror.rawValue,
+            forKey: SpeechModelDownloadPreferences.modeKey
+        )
+        defaults.set(
+            "https://mirror.example/hf",
+            forKey: SpeechModelDownloadPreferences.customMirrorURLKey
+        )
+
+        XCTAssertEqual(
+            SpeechModelDownloadPreferences.configuredSource(defaults: defaults),
+            SpeechModelDownloadSource(baseURL: URL(string: "https://mirror.example/hf")!)
+        )
+    }
+
     func testLocatorValidatesDirectSnapshotForManualImport() throws {
         let root = temporaryDirectory(named: "ReadBookDirectSnapshot")
         defer { try? FileManager.default.removeItem(at: root) }

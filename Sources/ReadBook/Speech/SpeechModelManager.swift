@@ -56,8 +56,9 @@ final class SpeechModelManager {
     }
 
     func prepareMissingModels(
-        source: SpeechModelDownloadSource = .huggingFace
+        source: SpeechModelDownloadSource? = nil
     ) async {
+        let resolvedSource = source ?? SpeechModelDownloadPreferences.configuredSource()
         state = .discovering
         do {
             var locations = try locator.locateAll()
@@ -65,7 +66,7 @@ final class SpeechModelManager {
             for descriptor in SpeechModelCatalog.all {
                 let isPresent = descriptor.kind == .tts ? locations.tts != nil : locations.aligner != nil
                 guard !isPresent else { continue }
-                try await download(descriptor, source: source)
+                try await download(descriptor, source: resolvedSource)
                 locations = try locator.locateAll()
                 updateInstalledKinds(locations)
             }
@@ -81,15 +82,16 @@ final class SpeechModelManager {
 
     func prepareModel(
         _ kind: SpeechModelKind,
-        source: SpeechModelDownloadSource = .huggingFace
+        source: SpeechModelDownloadSource? = nil
     ) async {
+        let resolvedSource = source ?? SpeechModelDownloadPreferences.configuredSource()
         state = .discovering
         do {
             var locations = try locator.locateAll()
             updateInstalledKinds(locations)
             let isPresent = kind == .tts ? locations.tts != nil : locations.aligner != nil
             if !isPresent {
-                try await download(SpeechModelCatalog.descriptor(for: kind), source: source)
+                try await download(SpeechModelCatalog.descriptor(for: kind), source: resolvedSource)
                 locations = try locator.locateAll()
                 updateInstalledKinds(locations)
             }
@@ -135,7 +137,6 @@ final class SpeechModelManager {
                 try FileManager.default.moveItem(at: staging, to: destination)
             }
 
-            try? FileManager.default.removeItem(at: staging.deletingLastPathComponent())
             let locations = try locator.locateAll()
             updateInstalledKinds(locations)
             state = state(for: locations)
