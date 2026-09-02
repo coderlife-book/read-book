@@ -86,23 +86,19 @@ bash Tests/ReleasePolicyTests.sh
 
 任何会改变用户实际运行 App 的 PR，都必须在同一个 PR 中同步更新版本号和 Build Number，不能先把功能合并进 `main`、再补一个版本 PR。
 
-当前 CI 将以下路径视为“需要发布”的用户产物变更：
+发布策略采用“维护路径白名单”而不是“产品路径白名单”：只有明确属于维护类的路径可以免升版本，其他路径（包括以后新建的未知目录）默认都视为会影响发布。这样新增 `Resources/`、配置目录或其他产物路径时，不会因为门禁规则没同步更新而漏发版本。
 
-- `Sources/**`
-- `DesignAssets/**`
-- `Package.swift`
-- `Package.resolved`
-- `Scripts/build-app.sh`
-- `Scripts/render-branding.swift`
-
-只修改以下维护类内容时，不要求升版本：
+当前明确免升版本的维护路径：
 
 - `.github/**`
 - `Tests/**`
 - `AGENTS.md`
 - `README.md`
 - `docs/**`
-- `.gitignore` 等不会改变 App 产物的仓库维护文件
+- `.gitignore`
+- `Scripts/check-release-policy.sh`
+
+因此 `Sources/**`、`DesignAssets/**`、`Package.swift`、`Package.resolved`、`Scripts/build-app.sh`、`Scripts/render-branding.swift` 以及任何未明确豁免的新路径都会要求发布新版本。
 
 版本规则：
 
@@ -110,7 +106,7 @@ bash Tests/ReleasePolicyTests.sh
 2. `APP_VERSION` 必须相对 PR base 严格递增，使用数字三段式版本，例如 `0.2.0 -> 0.2.1`。
 3. `APP_BUILD` 也必须严格递增，例如 `12 -> 13`。
 4. 同一个 PR 必须同步更新 workflow 中的 Release Notes，只描述该版本实际包含的用户可见变化。
-5. `Scripts/check-release-policy.sh` 是版本门禁的单一实现；`Tests/ReleasePolicyTests.sh` 必须覆盖维护改动、漏升版本、漏升 Build 和合法发布四类情况。
+5. `Scripts/check-release-policy.sh` 是版本门禁的单一实现；`Tests/ReleasePolicyTests.sh` 必须覆盖维护改动、漏升版本、未知路径默认发布、漏升 Build 和合法发布等情况。
 6. PR CI 在编译前执行发布门禁；用户产物变更如果没有正确升版本，`test-build-package` 必须直接失败，禁止合并。
 
 ## CI 与发布流程
