@@ -198,19 +198,32 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
             .appendingPathComponent(descriptor.revision, isDirectory: true)
         try fileManager.createDirectory(at: partialRoot, withIntermediateDirectories: true)
 
-        var files: [(path: String, url: URL, total: Int64, existing: Int64)] = []
+        var files: [(path: String, url: URL, total: Int64?, existing: Int64)] = []
         for path in descriptor.requiredRelativePaths {
             let remoteURL = try source.resolveURL(descriptor: descriptor, relativePath: path)
-            let total = try await transport.contentLength(for: remoteURL)
-            guard total >= 0 else { throw SpeechModelDownloadError.invalidContentLength(path) }
+            let total = try await contentLengthIfAvailable(for: remoteURL, path: path)
             let partialFile = partialRoot.appendingPathComponent(path)
             let existing = fileSize(at: partialFile)
-            files.append((path, remoteURL, total, min(existing, total)))
+            files.append((path, remoteURL, total, existing))
         }
 
-        let totalBytes = files.reduce(Int64(0)) { $0 + $1.total }
-        var downloadedBytes = files.reduce(Int64(0)) { $0 + $1.existing }
-        let missingBytes = totalBytes - downloadedBytes
+        let hasUnknownLength = files.contains { $0.total == nil }
+        let knownOrExistingBytes = files.reduce(Int64(0)) { partial, file in
+            partial + (file.total ?? file.existing)
+        }
+        let measuredTotalBytes = files.reduce(Int64(0)) { partial, file in
+            partial + (file.total ?? 0)
+        }
+        let totalBytes = hasUnknownLength
+            ? max(descriptor.approximateBytes, knownOrExistingBytes)
+            : measuredTotalBytes
+        var downloadedBytes = files.reduce(Int64(0)) { partial, file in
+            if let total = file.total {
+                return partial + min(file.existing, total)
+            }
+            return partial + file.existing
+        }
+        let missingBytes = max(totalBytes - downloadedBytes, 0)
         try verifyDiskCapacity(for: missingBytes, at: modelsRoot)
         progress(SpeechDownloadProgress(downloadedBytes: downloadedBytes, totalBytes: totalBytes))
 
@@ -221,9 +234,19 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
                 at: partialFile.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            if file.existing == file.total { continue }
-            if fileSize(at: partialFile) > file.total {
-                try Data().write(to: partialFile)
+
+            var startingOffset = file.existing
+            if let total = file.total {
+                if startingOffset == total { continue }
+                if startingOffset > total {
+                    downloadedBytes = max(downloadedBytes - total, 0)
+                    try Data().write(to: partialFile)
+                    startingOffset = 0
+                    progress(SpeechDownloadProgress(
+                        downloadedBytes: downloadedBytes,
+                        totalBytes: totalBytes
+                    ))
+                }
             } else if !fileManager.fileExists(atPath: partialFile.path) {
                 try Data().write(to: partialFile)
             }
@@ -231,14 +254,14 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
             let handle = try FileHandle(forWritingTo: partialFile)
             try handle.seekToEnd()
             do {
-                let stream = try await transport.bytes(for: file.url, startingAt: file.existing)
+                let stream = try await transport.bytes(for: file.url, startingAt: startingOffset)
                 for try await chunk in stream {
                     try Task.checkCancellation()
                     try handle.write(contentsOf: chunk)
                     downloadedBytes += Int64(chunk.count)
                     progress(SpeechDownloadProgress(
                         downloadedBytes: downloadedBytes,
-                        totalBytes: totalBytes
+                        totalBytes: max(totalBytes, downloadedBytes)
                     ))
                 }
                 try handle.close()
@@ -247,8 +270,15 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
                 throw error
             }
 
-            guard fileSize(at: partialFile) == file.total else {
-                throw SpeechModelDownloadError.incompleteFile(file.path)
+            let finalSize = fileSize(at: partialFile)
+            if let total = file.total {
+                guard finalSize == total else {
+                    throw SpeechModelDownloadError.incompleteFile(file.path)
+                }
+            } else {
+                guard finalSize > 0, finalSize >= startingOffset else {
+                    throw SpeechModelDownloadError.incompleteFile(file.path)
+                }
             }
         }
 
@@ -258,6 +288,22 @@ actor SpeechModelDownloader: SpeechModelSourceDownloading {
         )
         try fileManager.moveItem(at: partialRoot, to: destination)
         return destination
+    }
+
+    private func contentLengthIfAvailable(for url: URL, path: String) async throws -> Int64? {
+        do {
+            let total = try await transport.contentLength(for: url)
+            guard total >= 0 else {
+                throw SpeechModelDownloadError.invalidContentLength(path)
+            }
+            return total
+        } catch SpeechModelDownloadError.invalidContentLength {
+            return nil
+        } catch SpeechModelDownloadError.httpStatus(let status) where status == 405 || status == 501 {
+            return nil
+        } catch {
+            throw error
+        }
     }
 
     private func fileSize(at url: URL) -> Int64 {
